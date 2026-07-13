@@ -1,0 +1,16 @@
+{
+  "name": "@albion/typescript-config",
+  "private": true,
+  "version": "0.0.0",
+  "exports": {
+    ".": "./src/index.ts",
+    "./base.json": "./base.json",
+    "./react-library.json": "./react-library.json"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.0"
+  }
+}

@@ -1,0 +1,4 @@
+{
+  "extends": "@albion/typescript-config/base.json",
+  "include": ["src"]
+}

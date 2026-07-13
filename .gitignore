@@ -1,0 +1,15 @@
+# dependencies
+node_modules/
+
+# builds
+.next/
+.turbo/
+dist/
+
+# test output
+coverage/
+
+# environment files (never commit secrets)
+.env
+.env.*
+!.env.example
