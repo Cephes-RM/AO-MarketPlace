@@ -7,3 +7,18 @@ datasource db {
   url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
 }
+
+model Player {
+  id          String   @id @default(cuid())
+  playerId    String   @unique
+  name        String
+  guildName   String?
+  alliance    String?
+  fame        BigInt
+  killFame    BigInt
+  deathFame   BigInt
+  rating      Int      @default(0)
+  stars       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
