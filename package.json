@@ -11,11 +11,13 @@
     "dev": "turbo dev",
     "build": "turbo build",
     "typecheck": "turbo typecheck",
-    "lint": "turbo lint"
+    "lint": "turbo lint",
+    "generate-seed-doc": "tsx scripts/generate-seeded-players-doc.ts"
   },
   "devDependencies": {
     "dotenv": "^17.4.2",
     "prisma": "^6.19.3",
-    "turbo": "^2.5.0"
+    "turbo": "^2.5.0",
+    "tsx": "^4.19.0"
   }
 }
