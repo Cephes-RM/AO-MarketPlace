@@ -11,8 +11,7 @@
     "dev": "turbo dev",
     "build": "turbo build",
     "typecheck": "turbo typecheck",
-    "lint": "turbo lint",
-    "generate-seed-doc": "tsx scripts/generate-seeded-players-doc.ts"
+    "lint": "turbo lint"
   },
   "devDependencies": {
     "dotenv": "^17.4.2",

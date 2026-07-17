@@ -1,9 +1,5 @@
 # Seeded Players
 
-| ID | Name | Guild |
-|----|------|---------|
-| equart | Equart | Conflict |
-| koko | Koko | ARCH |
-| robin | Robin | No Mercy |
-| lordtachanka | LordTachanka | SQUAD |
-| bjorn | Bjorn | Evil |
+- wgyqjCcYRoistNUSfZgYLQ
+- KgXzr2H7RF2PcYKr1uJGQA
+- 5N33rMGDQH-LjQghZumvoA
