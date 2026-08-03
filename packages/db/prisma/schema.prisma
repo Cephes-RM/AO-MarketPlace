@@ -21,4 +21,22 @@ model Player {
   stars       Int      @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  kills KillEvent[] @relation("PlayerKills")
+  deaths KillEvent[] @relation("PlayerDeaths")
+}
+
+model KillEvent {
+  id         String   @id @default(cuid())
+
+  eventId    String   @unique
+
+  killerId   String
+  victimId   String
+
+  killer     Player   @relation("PlayerKills", fields: [killerId], references: [id])
+  victim     Player   @relation("PlayerDeaths", fields: [victimId], references: [id])
+
+  location   String
+  totalFame  BigInt
+  createdAt  DateTime
 }
