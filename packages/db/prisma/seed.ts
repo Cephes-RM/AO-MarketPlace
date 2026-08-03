@@ -33,9 +33,9 @@ async function main() {
     });
 
     if (!killer || !victim) {
-      console.warn(
-        `Skipping event ${event.id}: player not found.`
-      );
+      //console.warn(
+      //  `Skipping event ${event.id}: player not found.`);
+      
       continue;
     }
 
@@ -72,12 +72,12 @@ async function main() {
     content
   );
 
-  console.log("Seed completed.");
+  //console.log("Seed completed.");
 }
 
 main()
   .catch((e) => {
-    console.error(e);
+    //console.error(e);
     process.exit(1);
   })
   .finally(async () => {
