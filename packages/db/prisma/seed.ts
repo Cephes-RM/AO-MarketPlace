@@ -42,14 +42,13 @@ async function main() {
     await prisma.killEvent.upsert({
       where: {
         eventId: event.id,
-      },
+      },    
       //to delete the update
       update: {
         killerId: killer.id,
         victimId: victim.id,
         totalFame: event.totalFame,
         location: event.location,
-        createdAt: event.createdAt,
       },
       create: {
         eventId: event.id,
@@ -64,8 +63,7 @@ async function main() {
 
   // Generate documentation
   const content =
-    "# Seeded Players\n\n" +
-    players.map((p) => `- ${p.playerId}`).join("\n");
+    players.map((p) => `${p.playerId}`).join("\n");
 
   writeFileSync(
     join(__dirname, "../../../docs/seed_players.csv"),
