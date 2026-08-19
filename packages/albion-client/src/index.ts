@@ -1,8 +1,8 @@
 export {
-  AlbionApiError,
   createAlbionClient,
   isAlbionRegion,
 } from "./client.ts";
+export { AlbionApiError } from "./errors.ts";
 export type {
   AlbionClient,
   AlbionClientOptions,
