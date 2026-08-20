@@ -16,7 +16,7 @@ export async function getPlayerById(playerId: string) {
   }
 
   try {
-    const player = await prisma.player.findUnique({ where: { playerId } });
+    const player = await prisma.player.findUnique({ where: { external_player_id: playerId } });
 
     if (!player) {
       throw new Error("Player not found");

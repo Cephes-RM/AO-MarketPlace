@@ -1,34 +1,80 @@
 import { PrismaClient } from "@prisma/client";
 import { players } from "./players";
+import { events } from "./killEvents";
 import { writeFileSync } from "fs";
 import { join } from "path";
- 
+
 const prisma = new PrismaClient();
 
 async function main() {
-    for(let player of players) {
-        await prisma.player.upsert({
-            where: { playerId: player.playerId },
-            update: player ,
-            create: player,
-        });
-    }
-    
-    // Generate documentation
-    const rows = players
-        .map((player) => `- ${player.playerId}`)
-        .join("\n");
-    const content = `# Seeded Players
+  // Seed players
+  for (const player of players) {
+    await prisma.player.upsert({
+      where: {
+        external_player_id: player.external_player_id,
+      },
+      update: player,
+      create: player,
+    });
+  }
 
-${rows}
-`;
-    
-    const outputPath = join(__dirname, "../../../docs/seed_players.md");
-    writeFileSync(outputPath, content);
+  // Seed kill events
+  for (const event of events) {
+    const killer = await prisma.player.findUnique({
+      where: {
+        external_player_id: event.killerId,
+      },
+    });
+
+    const victim = await prisma.player.findUnique({
+      where: {
+        external_player_id: event.victimId,
+      },
+    });
+
+    if (!killer || !victim) {
+      //console.warn(
+      //  `Skipping event ${event.id}: player not found.`);
+      
+      continue;
+    }
+
+    await prisma.killEvent.upsert({
+      where: {
+        id: event.id,
+      },
+      update: {
+        killerId: killer.id,
+        victimId: victim.id,
+        totalFame: event.totalFame,
+        location: event.location,
+      },
+      create: {
+        id: event.id,
+        killerId: killer.id,
+        victimId: victim.id,
+        totalFame: event.totalFame,
+        location: event.location,
+        createdAt: event.createdAt,
+      },
+    });
+  }
+
+  // Generate documentation
+  const content =
+    players.map((p) => `${p.external_player_id}`).join("\n");
+
+  writeFileSync(
+    join(__dirname, "../../../docs/seed_players.csv"),
+    content
+  );
+
+  //console.log("Seed completed.");
 }
 
 main()
   .catch((e) => {
+    //console.error(e);
     process.exit(1);
   })
   .finally(async () => {
