@@ -11,7 +11,7 @@ async function main() {
   for (const player of players) {
     await prisma.player.upsert({
       where: {
-        playerId: player.playerId,
+        external_player_id: player.external_player_id,
       },
       update: player,
       create: player,
@@ -22,13 +22,13 @@ async function main() {
   for (const event of events) {
     const killer = await prisma.player.findUnique({
       where: {
-        playerId: event.killerId,
+        external_player_id: event.killerId,
       },
     });
 
     const victim = await prisma.player.findUnique({
       where: {
-        playerId: event.victimId,
+        external_player_id: event.victimId,
       },
     });
 
@@ -41,9 +41,8 @@ async function main() {
 
     await prisma.killEvent.upsert({
       where: {
-        eventId: event.id,
-      },    
-      //to delete the update
+        id: event.id,
+      },
       update: {
         killerId: killer.id,
         victimId: victim.id,
@@ -51,7 +50,7 @@ async function main() {
         location: event.location,
       },
       create: {
-        eventId: event.id,
+        id: event.id,
         killerId: killer.id,
         victimId: victim.id,
         totalFame: event.totalFame,
@@ -63,7 +62,7 @@ async function main() {
 
   // Generate documentation
   const content =
-    players.map((p) => `${p.playerId}`).join("\n");
+    players.map((p) => `${p.external_player_id}`).join("\n");
 
   writeFileSync(
     join(__dirname, "../../../docs/seed_players.csv"),

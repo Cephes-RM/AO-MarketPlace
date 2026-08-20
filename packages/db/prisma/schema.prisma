@@ -9,26 +9,25 @@ datasource db {
 }
 
 model Player {
-  id          String   @id @default(cuid())
-  playerId    String   @unique
-  name        String
-  guildName   String?
-  alliance    String?
-  fame        BigInt
-  killFame    BigInt
-  deathFame   BigInt
-  rating      Int      @default(0)
-  stars       Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                String   @id @default(cuid())
+  external_player_id String   @unique
+  name              String
+  guildName         String?
+  alliance          String?
+  region            String
+  fame              BigInt
+  killFame          BigInt
+  deathFame         BigInt
+  rating            Int      @default(0)
+  stars             Int      @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
   kills KillEvent[] @relation("PlayerKills")
   deaths KillEvent[] @relation("PlayerDeaths")
 }
 
 model KillEvent {
-  id         String   @id @default(cuid())
-
-  eventId    String   @unique
+  id         String   @id
 
   killerId   String
   victimId   String
