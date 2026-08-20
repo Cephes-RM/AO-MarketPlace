@@ -1,9 +1,10 @@
 export const players = [
   {
-    playerId: "wgyqjCcYRoistNUSfZgYLQ",
+    external_player_id: "wgyqjCcYRoistNUSfZgYLQ",
     name: "CerberoS",
     guildName: "A-T-L-A-S",
     alliance: "No alliance data",
+    region: "EU",
     fame: 1000000n,
     killFame: 275380299n,
     deathFame: 171172046n,
@@ -11,10 +12,11 @@ export const players = [
     stars: 4,
   },
   {
-    playerId: "KgXzr2H7RF2PcYKr1uJGQA",
+    external_player_id: "KgXzr2H7RF2PcYKr1uJGQA",
     name: "cephes",
     guildName: "A-T-L-A-S",
     alliance: "No alliance data",
+    region: "EU",
     fame: 1500000n,
     killFame: 97676701n,
     deathFame: 93787909n,
@@ -22,10 +24,11 @@ export const players = [
     stars: 5,
   },
   {
-    playerId: "5N33rMGDQH-LjQghZumvoA",
+    external_player_id: "5N33rMGDQH-LjQghZumvoA",
     name: "Phildas",
     guildName: "A-T-L-A-S",
     alliance: "No alliance data",
+    region: "EU",
     fame: 2000000n,
     killFame: 161168899n,
     deathFame: 109544331n,
