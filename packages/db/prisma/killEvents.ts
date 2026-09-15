@@ -27,6 +27,14 @@ export const events = [
         location: "unknown",
         createdAt: new Date(),
         totalFame: 123456789n,
+    },
+    {
+        id: "4",
+        killerId: "5N33rMGDQH-LjQghZumvoA",
+        victimId: "KgXzr2H7RF2PcYKr1uJGQA",
+        location: "unknown",
+        createdAt: new Date(),
+        totalFame: 423456789n,
     }
     
 ]

@@ -8,10 +8,32 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+model Alliance {
+  id                   String   @id @default(cuid())
+  external_alliance_id String   @unique
+  name                 String   @unique
+  guilds               Guild[]
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+}
+
+model Guild {
+  id                 String   @id @default(cuid())
+  external_guild_id  String   @unique
+  name               String   @unique
+  allianceId         String?
+  alliance           Alliance? @relation(fields: [allianceId], references: [external_alliance_id])
+  players            Player[]
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
 model Player {
   id                String   @id @default(cuid())
   external_player_id String   @unique
   name              String
+  guildId           String?
+  guild             Guild?   @relation(fields: [guildId], references: [external_guild_id])
   guildName         String?
   alliance          String?
   region            String
@@ -22,8 +44,8 @@ model Player {
   stars             Int      @default(0)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
-  kills KillEvent[] @relation("PlayerKills")
-  deaths KillEvent[] @relation("PlayerDeaths")
+  kills             KillEvent[] @relation("PlayerKills")
+  deaths            KillEvent[] @relation("PlayerDeaths")
 }
 
 model KillEvent {
