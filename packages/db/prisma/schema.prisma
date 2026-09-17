@@ -24,6 +24,7 @@ model Guild {
   allianceId         String?
   alliance           Alliance? @relation(fields: [allianceId], references: [external_alliance_id])
   players            Player[]
+  memberships        GuildMembership[]
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 }
@@ -46,6 +47,20 @@ model Player {
   updatedAt         DateTime @updatedAt
   kills             KillEvent[] @relation("PlayerKills")
   deaths            KillEvent[] @relation("PlayerDeaths")
+  guildMemberships   GuildMembership[]
+}
+
+model GuildMembership {
+  id        String   @id @default(cuid())
+  playerId  String
+  guildId   String
+  joinedAt  DateTime @default(now())
+  leftAt    DateTime?
+  player    Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  guild     Guild    @relation(fields: [guildId], references: [external_guild_id])
+
+  @@index([playerId, joinedAt])
+  @@index([guildId])
 }
 
 model KillEvent {

@@ -56,7 +56,7 @@ async function main() {
         })
       : null;
 
-    await prisma.player.upsert({
+    const seededPlayer = await prisma.player.upsert({
       where: {
         external_player_id: player.external_player_id,
       },
@@ -69,6 +69,27 @@ async function main() {
         guildId: guild?.external_guild_id ?? null,
       },
     });
+
+    const activeMembership = await prisma.guildMembership.findFirst({
+      where: { playerId: seededPlayer.id, leftAt: null },
+    });
+    const currentGuildId = guild?.external_guild_id ?? null;
+
+    if (activeMembership && activeMembership.guildId !== currentGuildId) {
+      await prisma.guildMembership.update({
+        where: { id: activeMembership.id },
+        data: { leftAt: new Date() },
+      });
+    }
+
+    if (currentGuildId && activeMembership?.guildId !== currentGuildId) {
+      await prisma.guildMembership.create({
+        data: {
+          playerId: seededPlayer.id,
+          guildId: currentGuildId,
+        },
+      });
+    }
   }
 
   // 4) Seed kill events.

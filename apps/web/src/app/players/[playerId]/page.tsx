@@ -22,6 +22,26 @@ export default async function PlayerPage({
           <li>Rating: {player.rating}</li>
           <li>Stars: {player.stars}</li>
         </ul>
+        <section>
+          <h2>Guild history</h2>
+          {player.guildMemberships.length === 0 ? (
+            <p>No guild history.</p>
+          ) : (
+            <ol>
+              {player.guildMemberships.map((membership) => (
+                <li key={membership.id}>
+                  <strong>
+                    {membership.guild.name}
+                    {membership.leftAt === null ? " (Current)" : ""}
+                  </strong>{" "}
+                  <span>
+                    {membership.joinedAt.toLocaleDateString()} - {membership.leftAt?.toLocaleDateString() ?? "Present"}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          )}
+        </section>
       </main>
     );
   } catch (error) {
