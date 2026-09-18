@@ -41,5 +41,44 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+      - name: Test
+        run: pnpm test
+
       - name: Lint
         run: pnpm lint
+
+  notify-discord:
+    name: Notify Discord
+    needs: validate
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+
+    steps:
+      - name: Send CI result to Discord
+        continue-on-error: true
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          CI_RESULT: ${{ needs.validate.result }}
+          REPOSITORY: ${{ github.repository }}
+          REF_NAME: ${{ github.ref_name }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "$DISCORD_WEBHOOK_URL" ]; then
+            echo "DISCORD_WEBHOOK_URL is not configured; skipping notification."
+            exit 0
+          fi
+
+          if [ "$CI_RESULT" = "success" ]; then
+            STATUS="✅ CI passed"
+          else
+            STATUS="❌ CI failed"
+          fi
+
+          MESSAGE="$STATUS for $REPOSITORY on $REF_NAME\n$RUN_URL"
+          PAYLOAD=$(jq -nc --arg content "$MESSAGE" '{content: $content}')
+
+          curl --fail-with-body --silent --show-error \
+            -H "Content-Type: application/json" \
+            --data "$PAYLOAD" \
+            "$DISCORD_WEBHOOK_URL"
