@@ -60,4 +60,25 @@ model KillEvent {
   location   String
   totalFame  BigInt
   createdAt  DateTime
+
+  items      KillEventItem[]
+}
+
+/// One equipped item worn during a kill event.
+/// role is "KILLER" or "VICTIM"; slot is an Albion equipment slot such as
+/// "mainHand" or "cape". A slot the player left empty simply has no row.
+model KillEventItem {
+  id       String @id @default(cuid())
+
+  eventId  String
+  event    KillEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  role     String
+  slot     String
+  itemType String
+  quality  Int?
+  count    Int?
+
+  @@unique([eventId, role, slot])
+  @@index([itemType])
 }

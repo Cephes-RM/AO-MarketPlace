@@ -111,6 +111,36 @@ async function main() {
         createdAt: event.createdAt,
       },
     });
+
+    // 4b) Seed the equipment worn during the event, one row per filled slot.
+    // Slots the player left empty are simply absent from the seed data.
+    const loadouts = [
+      { role: "KILLER", equipment: event.killerEquipment },
+      { role: "VICTIM", equipment: event.victimEquipment },
+    ];
+
+    for (const { role, equipment } of loadouts) {
+      for (const [slot, item] of Object.entries(equipment ?? {})) {
+        await prisma.killEventItem.upsert({
+          where: {
+            eventId_role_slot: { eventId: event.id, role, slot },
+          },
+          update: {
+            itemType: item.itemType,
+            quality: "quality" in item ? item.quality : null,
+            count: "count" in item ? item.count : null,
+          },
+          create: {
+            eventId: event.id,
+            role,
+            slot,
+            itemType: item.itemType,
+            quality: "quality" in item ? item.quality : null,
+            count: "count" in item ? item.count : null,
+          },
+        });
+      }
+    }
   }
 
   // 5) Generate a CSV from the player IDs for documentation or quick lookup.
