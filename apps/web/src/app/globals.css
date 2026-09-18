@@ -1,4 +1,6 @@
 @import "tailwindcss";
+/* Generate classes used by the shared components in @albion/ui. */
+@source "../../../../packages/ui/src";
 
 :root {
   --background: #ffffff;
