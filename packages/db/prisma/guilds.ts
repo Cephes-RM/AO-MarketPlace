@@ -9,4 +9,19 @@ export const guilds = [
     name: "Ruthless Reign",
     allianceId: "LR8GuAcsS9iGmvYgFVl0hQ",
   },
+  {
+    external_guild_id: "SN5SvspiQRq9bnRLoDHGMQ",
+    name: "POLSKA GUROM",
+    allianceId: null,
+  },
+  {
+    external_guild_id: "vAzlAX2DS4a1Qu3MHR12SA",
+    name: "POLSKA GURRROM",
+    allianceId: null,
+  },
+  {
+    external_guild_id: "VWhal0JHQcqLRjEHm3KnKw",
+    name: "Awantura",
+    allianceId: null,
+  },
 ];

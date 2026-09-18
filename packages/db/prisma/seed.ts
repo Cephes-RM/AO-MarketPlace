@@ -3,6 +3,7 @@ import { alliances } from "./alliances";
 import { guilds } from "./guilds";
 import { players } from "./players";
 import { events } from "./killEvents";
+import { guildMemberships } from "./guildMemberships";
 import { writeFileSync } from "fs";
 import { join } from "path";
 
@@ -92,7 +93,35 @@ async function main() {
     }
   }
 
-  // 4) Seed kill events.
+  // 4) Seed additional imported guild history without duplicating it on reruns.
+  for (const membership of guildMemberships) {
+    const player = await prisma.player.findFirst({
+      where: { name: membership.playerName },
+    });
+
+    if (!player) {
+      continue;
+    }
+
+    const existingMembership = await prisma.guildMembership.findFirst({
+      where: {
+        playerId: player.id,
+        guildId: membership.guildId,
+      },
+    });
+
+    if (!existingMembership) {
+      await prisma.guildMembership.create({
+        data: {
+          playerId: player.id,
+          guildId: membership.guildId,
+          leftAt: new Date(),
+        },
+      });
+    }
+  }
+
+  // 5) Seed kill events.
   // We resolve the killer and victim by their external Albion player IDs,
   // then save the event pointing to the internal Prisma Player records.
   for (const event of events) {
