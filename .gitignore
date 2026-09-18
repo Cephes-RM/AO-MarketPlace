@@ -1,6 +1,10 @@
 # dependencies
 node_modules/
 
+# zabala dial cerberos
+pacakge-lock.json
+yarn.lock
+
 # builds
 .next/
 .turbo/
