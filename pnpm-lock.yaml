@@ -32,6 +32,9 @@ importers:
       '@albion/ui':
         specifier: workspace:*
         version: link:../../packages/ui
+      '@prisma/client':
+        specifier: ^6.0.0
+        version: 6.19.3(prisma@6.19.3(typescript@5.9.3))(typescript@5.9.3)
       next:
         specifier: 15.5.20
         version: 15.5.20(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
