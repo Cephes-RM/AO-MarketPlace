@@ -2,9 +2,6 @@ export const players = [
   {
     external_player_id: "wgyqjCcYRoistNUSfZgYLQ",
     name: "CerberoS",
-    guildName: "A-T-L-A-S",
-    guildId: null,
-    alliance: "No alliance data",
     region: "EU",
     fame: 1000000n,
     killFame: 275380299n,
@@ -15,9 +12,6 @@ export const players = [
   {
     external_player_id: "KgXzr2H7RF2PcYKr1uJGQA",
     name: "cephes",
-    guildName: "A-T-L-A-S",
-    guildId: null,
-    alliance: "No alliance data",
     region: "EU",
     fame: 1500000n,
     killFame: 97676701n,
@@ -28,9 +22,6 @@ export const players = [
   {
     external_player_id: "5N33rMGDQH-LjQghZumvoA",
     name: "Phildas",
-    guildName: "A-T-L-A-S",
-    guildId: null,
-    alliance: "No alliance data",
     region: "EU",
     fame: 2000000n,
     killFame: 161168899n,
@@ -41,9 +32,6 @@ export const players = [
   {
     external_player_id: "JLz63ANFSKyZ9ufMvTx_ow",
     name: "RuskiePlacki",
-    guildName: "Ruthless Reign",
-    guildId: "0PwhfF-hRfSkyzz_A4TxfQ",
-    alliance: "Bozy Smallec",
     region: "EU",
     fame: 0n,
     killFame: 0n,
@@ -54,9 +42,6 @@ export const players = [
   {
     external_player_id: "JGIl2brARpaMppTge_1ViA",
     name: "Yazdaa",
-    guildName: "Ruthless Reign",
-    guildId: "0PwhfF-hRfSkyzz_A4TxfQ",
-    alliance: "Bozy Smallec",
     region: "EU",
     fame: 0n,
     killFame: 0n,
@@ -67,9 +52,6 @@ export const players = [
   {
     external_player_id: "5SZHj1-bQBWIeX_rd7wshA",
     name: "cukson",
-    guildName: "WhySpierdalasz",
-    guildId: "Wnt8anqNRRSSWA96p8m4IA",
-    alliance: "Bozy Smallec",
     region: "EU",
     fame: 0n,
     killFame: 0n,
@@ -80,9 +62,6 @@ export const players = [
   {
     external_player_id: "EtKrtOAsSOuR1bd4KrCNSQ",
     name: "gromalol",
-    guildName: "WhySpierdalasz",
-    guildId: "Wnt8anqNRRSSWA96p8m4IA",
-    alliance: "Bozy Smallec",
     region: "EU",
     fame: 0n,
     killFame: 0n,

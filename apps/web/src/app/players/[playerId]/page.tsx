@@ -9,12 +9,15 @@ export default async function PlayerPage({
 
   try {
     const player = await getPlayerById(playerId);
+    const currentMembership = player.guildMemberships.find(
+      (membership) => membership.leftAt === null,
+    );
 
     return (
       <main>
         <h1>{player.name}</h1>
         <ul>
-          <li>Guild: {player.guildName ?? "None"}</li>
+          <li>Guild: {currentMembership?.guild.name ?? "None"}</li>
           <li>Alliance: {player.alliance ?? "None"}</li>
           <li>Fame: {player.fame}</li>
           <li>Kill Fame: {player.killFame}</li>

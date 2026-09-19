@@ -1,14 +1,44 @@
 export const guildMemberships = [
   {
+    playerName: "RuskiePlacki",
+    guildId: "0PwhfF-hRfSkyzz_A4TxfQ",
+    joinedAt: new Date("2024-03-01T12:00:00.000Z"),
+    current: true,
+  },
+  {
+    playerName: "Yazdaa",
+    guildId: "0PwhfF-hRfSkyzz_A4TxfQ",
+    joinedAt: new Date("2024-03-05T12:00:00.000Z"),
+    current: true,
+  },
+  {
+    playerName: "cukson",
+    guildId: "Wnt8anqNRRSSWA96p8m4IA",
+    joinedAt: new Date("2024-02-20T12:00:00.000Z"),
+    current: true,
+  },
+  {
     playerName: "gromalol",
     guildId: "SN5SvspiQRq9bnRLoDHGMQ",
+    joinedAt: new Date("2024-01-10T12:00:00.000Z"),
+    leftAt: new Date("2024-02-11T12:00:00.000Z"),
   },
   {
     playerName: "gromalol",
     guildId: "vAzlAX2DS4a1Qu3MHR12SA",
+    joinedAt: new Date("2024-02-12T12:00:00.000Z"),
+    leftAt: new Date("2024-03-04T12:00:00.000Z"),
   },
   {
     playerName: "gromalol",
     guildId: "VWhal0JHQcqLRjEHm3KnKw",
+    joinedAt: new Date("2024-03-05T12:00:00.000Z"),
+    leftAt: new Date("2024-04-01T12:00:00.000Z"),
+  },
+  {
+    playerName: "gromalol",
+    guildId: "Wnt8anqNRRSSWA96p8m4IA",
+    joinedAt: new Date("2024-04-02T12:00:00.000Z"),
+    current: true,
   },
 ];

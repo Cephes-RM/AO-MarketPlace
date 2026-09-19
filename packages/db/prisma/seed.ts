@@ -46,51 +46,19 @@ async function main() {
     });
   }
 
-  // 3) Seed players and connect each one to its guild.
-  // We first look up the guild by its external Albion guild ID, then set player.guildId.
+  // 3) Seed players.
   for (const player of players) {
-    const guild = player.guildId
-      ? await prisma.guild.findUnique({
-          where: {
-            external_guild_id: player.guildId,
-          },
-        })
-      : null;
-
     const seededPlayer = await prisma.player.upsert({
       where: {
         external_player_id: player.external_player_id,
       },
       update: {
         ...player,
-        guildId: guild?.external_guild_id ?? null,
       },
       create: {
         ...player,
-        guildId: guild?.external_guild_id ?? null,
       },
     });
-
-    const activeMembership = await prisma.guildMembership.findFirst({
-      where: { playerId: seededPlayer.id, leftAt: null },
-    });
-    const currentGuildId = guild?.external_guild_id ?? null;
-
-    if (activeMembership && activeMembership.guildId !== currentGuildId) {
-      await prisma.guildMembership.update({
-        where: { id: activeMembership.id },
-        data: { leftAt: new Date() },
-      });
-    }
-
-    if (currentGuildId && activeMembership?.guildId !== currentGuildId) {
-      await prisma.guildMembership.create({
-        data: {
-          playerId: seededPlayer.id,
-          guildId: currentGuildId,
-        },
-      });
-    }
   }
 
   // 4) Seed additional imported guild history without duplicating it on reruns.
@@ -103,27 +71,29 @@ async function main() {
       continue;
     }
 
-    const existingMembership = await prisma.guildMembership.findFirst({
+    await prisma.guildMembership.upsert({
       where: {
-        playerId: player.id,
+        playerId_guildId_joinedAt: {
+          playerId: player.external_player_id,
+          guildId: membership.guildId,
+          joinedAt: membership.joinedAt,
+        },
+      },
+      update: {
+        leftAt: membership.leftAt ?? null,
+      },
+      create: {
+        playerId: player.external_player_id,
         guildId: membership.guildId,
+        joinedAt: membership.joinedAt,
+        leftAt: membership.leftAt,
       },
     });
-
-    if (!existingMembership) {
-      await prisma.guildMembership.create({
-        data: {
-          playerId: player.id,
-          guildId: membership.guildId,
-          leftAt: new Date(),
-        },
-      });
-    }
   }
 
   // 5) Seed kill events.
   // We resolve the killer and victim by their external Albion player IDs,
-  // then save the event pointing to the internal Prisma Player records.
+  // then save the event pointing to the same external IDs used by the model.
   for (const event of events) {
     const killer = await prisma.player.findUnique({
       where: {
@@ -147,15 +117,15 @@ async function main() {
         id: event.id,
       },
       update: {
-        killerId: killer.id,
-        victimId: victim.id,
+        killerId: killer.external_player_id,
+        victimId: victim.external_player_id,
         totalFame: event.totalFame,
         location: event.location,
       },
       create: {
         id: event.id,
-        killerId: killer.id,
-        victimId: victim.id,
+        killerId: killer.external_player_id,
+        victimId: victim.external_player_id,
         totalFame: event.totalFame,
         location: event.location,
         createdAt: event.createdAt,

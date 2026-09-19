@@ -9,8 +9,7 @@ datasource db {
 }
 
 model Alliance {
-  id                   String   @id @default(cuid())
-  external_alliance_id String   @unique
+  external_alliance_id String   @id
   name                 String   @unique
   guilds               Guild[]
   createdAt            DateTime @default(now())
@@ -18,61 +17,53 @@ model Alliance {
 }
 
 model Guild {
-  id                 String   @id @default(cuid())
-  external_guild_id  String   @unique
-  name               String   @unique
-  allianceId         String?
-  alliance           Alliance? @relation(fields: [allianceId], references: [external_alliance_id])
-  players            Player[]
-  memberships        GuildMembership[]
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  external_guild_id String   @id
+  name              String   @unique
+  allianceId        String?
+  alliance          Alliance? @relation(fields: [allianceId], references: [external_alliance_id])
+  memberships       GuildMembership[]
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 }
 
 model Player {
-  id                String   @id @default(cuid())
-  external_player_id String   @unique
-  name              String
-  guildId           String?
-  guild             Guild?   @relation(fields: [guildId], references: [external_guild_id])
-  guildName         String?
-  alliance          String?
-  region            String
-  fame              BigInt
-  killFame          BigInt
-  deathFame         BigInt
-  rating            Int      @default(0)
-  stars             Int      @default(0)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  kills             KillEvent[] @relation("PlayerKills")
-  deaths            KillEvent[] @relation("PlayerDeaths")
+  external_player_id String   @id
+  name               String
+  region             String
+  fame               BigInt
+  killFame           BigInt
+  deathFame          BigInt
+  rating             Int      @default(0)
+  stars              Int      @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  kills              KillEvent[] @relation("PlayerKills")
+  deaths             KillEvent[] @relation("PlayerDeaths")
   guildMemberships   GuildMembership[]
 }
 
 model GuildMembership {
-  id        String   @id @default(cuid())
-  playerId  String
-  guildId   String
-  joinedAt  DateTime @default(now())
-  leftAt    DateTime?
-  player    Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
-  guild     Guild    @relation(fields: [guildId], references: [external_guild_id])
+  playerId String
+  guildId  String
+  joinedAt DateTime  @default(now())
+  leftAt   DateTime?
+  player   Player    @relation(fields: [playerId], references: [external_player_id], onDelete: Cascade)
+  guild    Guild     @relation(fields: [guildId], references: [external_guild_id])
 
+  @@id([playerId, guildId, joinedAt])
   @@index([playerId, joinedAt])
   @@index([guildId])
 }
 
 model KillEvent {
-  id         String   @id
+  id        String   @id
+  killerId  String
+  victimId  String
 
-  killerId   String
-  victimId   String
+  killer    Player   @relation("PlayerKills", fields: [killerId], references: [external_player_id])
+  victim    Player   @relation("PlayerDeaths", fields: [victimId], references: [external_player_id])
 
-  killer     Player   @relation("PlayerKills", fields: [killerId], references: [id])
-  victim     Player   @relation("PlayerDeaths", fields: [victimId], references: [id])
-
-  location   String
-  totalFame  BigInt
-  createdAt  DateTime
+  location  String
+  totalFame BigInt
+  createdAt DateTime
 }
