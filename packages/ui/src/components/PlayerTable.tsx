@@ -17,9 +17,18 @@ export interface PlayerRow {
 export interface PlayerTableProps {
   players: PlayerRow[];
   getPlayerHref?: (playerId: string) => string;
+  /** Number the rows, with a medal on the top three. */
+  showRank?: boolean;
   emptyMessage?: string;
   className?: string;
 }
+
+// Gold, silver, bronze for the podium; plain iron for everyone below it.
+const MEDALS = [
+  "border-gold-300/60 bg-gold-500/15 text-gold-300",
+  "border-neutral-300/50 bg-neutral-300/10 text-neutral-300",
+  "border-amber-700/60 bg-amber-700/15 text-amber-600",
+];
 
 const defaultPlayerHref = (playerId: string) => `/players/${encodeURIComponent(playerId)}`;
 
@@ -27,6 +36,7 @@ const defaultPlayerHref = (playerId: string) => `/players/${encodeURIComponent(p
 export function PlayerTable({
   players,
   getPlayerHref = defaultPlayerHref,
+  showRank = false,
   emptyMessage = "No players yet.",
   className,
 }: PlayerTableProps) {
@@ -48,6 +58,11 @@ export function PlayerTable({
       <table className="w-full min-w-[34rem] text-left text-sm">
         <thead className="border-b border-neutral-200 text-xs text-neutral-500 uppercase dark:border-neutral-800 dark:text-neutral-400">
           <tr>
+            {showRank ? (
+              <th scope="col" className="px-4 py-3 font-medium">
+                #
+              </th>
+            ) : null}
             <th scope="col" className="px-4 py-3 font-medium">
               Player
             </th>
@@ -66,10 +81,23 @@ export function PlayerTable({
           </tr>
         </thead>
         <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800">
-          {players.map((player) => {
+          {players.map((player, index) => {
             const ratio = fameRatio(player.killFame, player.deathFame);
             return (
               <tr key={player.id} className="hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
+                {showRank ? (
+                  <td className="px-4 py-3">
+                    <span
+                      className={cn(
+                        "inline-flex size-7 items-center justify-center rounded-full border font-display text-xs font-bold",
+                        MEDALS[index] ??
+                          "border-neutral-200 text-neutral-500 dark:border-neutral-700 dark:text-neutral-400",
+                      )}
+                    >
+                      {index + 1}
+                    </span>
+                  </td>
+                ) : null}
                 <td className="px-4 py-3 font-medium whitespace-nowrap">
                   <Link
                     href={getPlayerHref(player.id)}

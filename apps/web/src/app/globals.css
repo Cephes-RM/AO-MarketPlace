@@ -12,6 +12,17 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-display: var(--font-display);
+
+  /* Albion palette: forged gold on iron, with the parchment of the game's UI. */
+  --color-gold-100: #f7e7bd;
+  --color-gold-300: #e5c06a;
+  --color-gold-500: #c8962c;
+  --color-gold-700: #8a6316;
+  --color-iron-700: #2a2f38;
+  --color-iron-800: #1c2027;
+  --color-iron-900: #12151a;
+  --color-iron-950: #0a0c10;
 }
 
 @media (prefers-color-scheme: dark) {

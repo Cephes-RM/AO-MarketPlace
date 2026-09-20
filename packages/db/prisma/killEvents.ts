@@ -23,7 +23,7 @@ export const events = [
             cape: { itemType: "T8_CAPEITEM_FW_MARTLOCK@1", quality: 3 },
             bag: { itemType: "T6_BAG@1", quality: 2 },
             mount: { itemType: "T8_MOUNT_ARMORED_HORSE", quality: 1 },
-            potion: { itemType: "T7_POTION_HEAL", count: 3 },
+            potion: { itemType: "T4_POTION_HEAL", count: 3 },
             food: { itemType: "T7_MEAL_OMELETTE", count: 1 },
         },
         victimEquipment: {
@@ -48,7 +48,7 @@ export const events = [
             armor: { itemType: "T8_ARMOR_LEATHER_SET3@3", quality: 4 },
             shoes: { itemType: "T8_SHOES_LEATHER_SET3@2", quality: 3 },
             cape: { itemType: "T8_CAPEITEM_HERETIC@2", quality: 3 },
-            potion: { itemType: "T8_POTION_ENERGY", count: 2 },
+            potion: { itemType: "T4_POTION_ENERGY", count: 2 },
             food: { itemType: "T8_MEAL_SANDWICH", count: 1 },
         },
         victimEquipment: {
