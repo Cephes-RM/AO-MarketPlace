@@ -77,12 +77,6 @@ CREATE TABLE "KillParticipant" (
 );
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Alliance_name_key" ON "Alliance"("name");
-
--- CreateIndex
-CREATE UNIQUE INDEX "Guild_name_key" ON "Guild"("name");
-
--- CreateIndex
 CREATE INDEX "GuildMembership_playerId_joinedAt_idx" ON "GuildMembership"("playerId", "joinedAt");
 
 -- CreateIndex
@@ -103,7 +97,7 @@ ALTER TABLE "GuildMembership" ADD CONSTRAINT "GuildMembership_playerId_fkey" FOR
 -- AddForeignKey
 ALTER TABLE "GuildMembership" ADD CONSTRAINT "GuildMembership_guildId_fkey" FOREIGN KEY ("guildId") REFERENCES "Guild"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
---enforce one current guild per player
+--enforce only one current membership per player
 CREATE UNIQUE INDEX "GuildMembership_one_current_per_player" ON "GuildMembership" ("playerId") WHERE "leftAt" IS NULL;
 
 -- AddForeignKey
