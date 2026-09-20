@@ -10,7 +10,7 @@ datasource db {
 
 model Alliance {
   id        String   @id
-  name      String   @unique
+  name      String   
   guilds    Guild[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -18,7 +18,7 @@ model Alliance {
 
 model Guild {
   id          String            @id
-  name        String            @unique
+  name        String            
   allianceId  String?
   alliance    Alliance?         @relation(fields: [allianceId], references: [id])
   memberships GuildMembership[]
