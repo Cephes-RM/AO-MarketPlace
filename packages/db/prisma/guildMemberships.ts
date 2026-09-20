@@ -48,4 +48,4 @@ export const guildMemberships = [
     joinedAt: new Date("2024-04-02T12:00:00.000Z"),
     current: true,
   },
-];
+];

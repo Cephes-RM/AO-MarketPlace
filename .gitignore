@@ -2,7 +2,7 @@
 node_modules/
 
 # zabala dial cerberos
-pacakge-lock.json
+pacakage-lock.json
 yarn.lock
 
 # builds
