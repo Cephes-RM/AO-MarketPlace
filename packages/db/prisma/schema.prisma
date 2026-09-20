@@ -9,37 +9,38 @@ datasource db {
 }
 
 model Alliance {
-  external_alliance_id String   @id
-  name                 String   @unique
-  guilds               Guild[]
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  id        String   @id
+  name      String   @unique
+  guilds    Guild[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Guild {
-  external_guild_id String   @id
-  name              String   @unique
-  allianceId        String?
-  alliance          Alliance? @relation(fields: [allianceId], references: [external_alliance_id])
-  memberships       GuildMembership[]
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id          String            @id
+  name        String            @unique
+  allianceId  String?
+  alliance    Alliance?         @relation(fields: [allianceId], references: [id])
+  memberships GuildMembership[]
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
 }
 
 model Player {
-  external_player_id String   @id
-  name               String
-  region             String
-  fame               BigInt
-  killFame           BigInt
-  deathFame          BigInt
-  rating             Int      @default(0)
-  stars              Int      @default(0)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-  kills              KillEvent[] @relation("PlayerKills")
-  deaths             KillEvent[] @relation("PlayerDeaths")
-  guildMemberships   GuildMembership[]
+  id               String            @id
+  name             String
+  region           String
+  fame             BigInt
+  killFame         BigInt
+  deathFame        BigInt
+  rating           Int               @default(0)
+  stars            Int               @default(0)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  kills            KillEvent[]       @relation("PlayerKills")
+  deaths           KillEvent[]       @relation("PlayerDeaths")
+  guildMemberships GuildMembership[]
+  participants     KillParticipant[]
 }
 
 model GuildMembership {
@@ -47,8 +48,8 @@ model GuildMembership {
   guildId  String
   joinedAt DateTime  @default(now())
   leftAt   DateTime?
-  player   Player    @relation(fields: [playerId], references: [external_player_id], onDelete: Cascade)
-  guild    Guild     @relation(fields: [guildId], references: [external_guild_id])
+  player   Player    @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  guild    Guild     @relation(fields: [guildId], references: [id])
 
   @@id([playerId, guildId, joinedAt])
   @@index([playerId, joinedAt])
@@ -56,14 +57,41 @@ model GuildMembership {
 }
 
 model KillEvent {
-  id        String   @id
-  killerId  String
-  victimId  String
+  id              String            @id
+  killerId        String
+  victimId        String
 
-  killer    Player   @relation("PlayerKills", fields: [killerId], references: [external_player_id])
-  victim    Player   @relation("PlayerDeaths", fields: [victimId], references: [external_player_id])
+  killer          Player            @relation("PlayerKills", fields: [killerId], references: [id])
+  victim          Player            @relation("PlayerDeaths", fields: [victimId], references: [id])
 
-  location  String
-  totalFame BigInt
-  createdAt DateTime
+  killerLoadout   Json?
+  victimLoadout   Json?
+  killerItemPower Float?
+  victimItemPower Float?
+
+  location        String
+  totalFame       BigInt
+  createdAt       DateTime
+
+  participants    KillParticipant[]
 }
+
+model KillParticipant {
+  id          String    @id @default(cuid())
+  killEventId String
+  playerId    String
+
+  damageDone  Int?
+  healingDone Int?
+  killFame    BigInt?
+  isPrimary   Boolean   @default(false)
+  loadout     Json?
+  itemPower   Float?
+
+  killEvent   KillEvent @relation(fields: [killEventId], references: [id], onDelete: Cascade)
+  player      Player    @relation(fields: [playerId], references: [id])
+
+  @@unique([killEventId, playerId])
+  @@index([playerId])
+}
+

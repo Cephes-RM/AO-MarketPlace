@@ -18,7 +18,7 @@ export default async function PlayerPage({
         <h1>{player.name}</h1>
         <ul>
           <li>Guild: {currentMembership?.guild.name ?? "None"}</li>
-          <li>Alliance: {player.alliance ?? "None"}</li>
+          <li>Alliance: {currentMembership?.guild.allianceId ?? "None"}</li>
           <li>Fame: {player.fame}</li>
           <li>Kill Fame: {player.killFame}</li>
           <li>Death Fame: {player.deathFame}</li>
@@ -32,7 +32,9 @@ export default async function PlayerPage({
           ) : (
             <ol>
               {player.guildMemberships.map((membership) => (
-                <li key={membership.id}>
+                <li
+                  key={`${membership.playerId}-${membership.guildId}-${membership.joinedAt.toISOString()}`}
+                >
                   <strong>
                     {membership.guild.name}
                     {membership.leftAt === null ? " (Current)" : ""}

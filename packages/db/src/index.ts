@@ -17,7 +17,7 @@ export async function getPlayerById(playerId: string) {
 
   try {
     const player = await prisma.player.findUnique({
-      where: { external_player_id: playerId },
+      where: { id: playerId },
       include: {
         guildMemberships: {
           include: { guild: true },

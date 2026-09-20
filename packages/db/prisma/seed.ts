@@ -4,8 +4,6 @@ import { guilds } from "./guilds";
 import { players } from "./players";
 import { events } from "./killEvents";
 import { guildMemberships } from "./guildMemberships";
-import { writeFileSync } from "fs";
-import { join } from "path";
 
 const prisma = new PrismaClient();
 
@@ -15,42 +13,42 @@ async function main() {
   for (const alliance of alliances) {
     await prisma.alliance.upsert({
       where: {
-        external_alliance_id: alliance.external_alliance_id,
+        id: alliance.id,
       },
       update: {
         name: alliance.name,
       },
       create: {
-        external_alliance_id: alliance.external_alliance_id,
+        id: alliance.id,
         name: alliance.name,
       },
     });
   }
 
   // 2) Seed guilds next.
-  // Each guild stores its external Albion guild ID and the alliance it belongs to.
+  // Each guild stores its external Albion guild ID as id and the alliance it belongs to.
   for (const guild of guilds) {
     await prisma.guild.upsert({
       where: {
-        external_guild_id: guild.external_guild_id,
+        id: guild.id,
       },
       update: {
         name: guild.name,
         allianceId: guild.allianceId,
       },
       create: {
-        external_guild_id: guild.external_guild_id,
+        id: guild.id,
         name: guild.name,
         allianceId: guild.allianceId,
       },
     });
   }
 
-  // 3) Seed players.
+  // 3) Seed players without keeping unused return value.
   for (const player of players) {
-    const seededPlayer = await prisma.player.upsert({
+    await prisma.player.upsert({
       where: {
-        external_player_id: player.external_player_id,
+        id: player.id,
       },
       update: {
         ...player,
@@ -61,49 +59,52 @@ async function main() {
     });
   }
 
-  // 4) Seed additional imported guild history without duplicating it on reruns.
+  // 4) Seed guild memberships with primary key lookups and safe updates.
   for (const membership of guildMemberships) {
-    const player = await prisma.player.findFirst({
-      where: { name: membership.playerName },
+    const player = await prisma.player.findUnique({
+      where: { id: membership.playerId },
     });
 
-    if (!player) {
+    const guild = await prisma.guild.findUnique({
+      where: { id: membership.guildId },
+    });
+
+    if (!player || !guild) {
       continue;
     }
 
     await prisma.guildMembership.upsert({
       where: {
         playerId_guildId_joinedAt: {
-          playerId: player.external_player_id,
-          guildId: membership.guildId,
+          playerId: player.id,
+          guildId: guild.id,
           joinedAt: membership.joinedAt,
         },
       },
       update: {
-        leftAt: membership.leftAt ?? null,
+        // Only update leftAt if supported by reliable source data
+        ...(membership.leftAt instanceof Date ? { leftAt: membership.leftAt } : {}),
       },
       create: {
-        playerId: player.external_player_id,
-        guildId: membership.guildId,
+        playerId: player.id,
+        guildId: guild.id,
         joinedAt: membership.joinedAt,
-        leftAt: membership.leftAt,
+        leftAt: membership.leftAt ?? null,
       },
     });
   }
 
-  // 5) Seed kill events.
-  // We resolve the killer and victim by their external Albion player IDs,
-  // then save the event pointing to the same external IDs used by the model.
+  // 5) Seed kill events, participants, and equipment.
   for (const event of events) {
     const killer = await prisma.player.findUnique({
       where: {
-        external_player_id: event.killerId,
+        id: event.killerId,
       },
     });
 
     const victim = await prisma.player.findUnique({
       where: {
-        external_player_id: event.victimId,
+        id: event.victimId,
       },
     });
 
@@ -117,26 +118,74 @@ async function main() {
         id: event.id,
       },
       update: {
-        killerId: killer.external_player_id,
-        victimId: victim.external_player_id,
+        killerId: killer.id,
+        victimId: victim.id,
         totalFame: event.totalFame,
         location: event.location,
+        killerLoadout: event.killerLoadout ?? undefined,
+        victimLoadout: event.victimLoadout ?? undefined,
+        killerItemPower: event.killerItemPower,
+        victimItemPower: event.victimItemPower,
       },
       create: {
         id: event.id,
-        killerId: killer.external_player_id,
-        victimId: victim.external_player_id,
+        killerId: killer.id,
+        victimId: victim.id,
         totalFame: event.totalFame,
         location: event.location,
         createdAt: event.createdAt,
+        killerLoadout: event.killerLoadout ?? undefined,
+        victimLoadout: event.victimLoadout ?? undefined,
+        killerItemPower: event.killerItemPower,
+        victimItemPower: event.victimItemPower,
       },
     });
+
+    // Seed assisting participants if available
+    if (event.participants && event.participants.length > 0) {
+      for (const participant of event.participants) {
+        // Avoid adding the primary killer as an assistant
+        if (participant.playerId === killer.id) {
+          continue;
+        }
+
+        const participantPlayer = await prisma.player.findUnique({
+          where: { id: participant.playerId },
+        });
+
+        if (!participantPlayer) {
+          continue;
+        }
+
+        await prisma.killParticipant.upsert({
+          where: {
+            killEventId_playerId: {
+              killEventId: event.id,
+              playerId: participant.playerId,
+            },
+          },
+          update: {
+            damageDone: participant.damageDone,
+            healingDone: participant.healingDone,
+            killFame: participant.killFame,
+            isPrimary: participant.isPrimary ?? false,
+            loadout: participant.loadout ?? undefined,
+            itemPower: participant.itemPower,
+          },
+          create: {
+            killEventId: event.id,
+            playerId: participant.playerId,
+            damageDone: participant.damageDone,
+            healingDone: participant.healingDone,
+            killFame: participant.killFame,
+            isPrimary: participant.isPrimary ?? false,
+            loadout: participant.loadout ?? undefined,
+            itemPower: participant.itemPower,
+          },
+        });
+      }
+    }
   }
-
-  // 5) Generate a CSV from the player IDs for documentation or quick lookup.
-  const content = players.map((p) => `${p.external_player_id}`).join("\n");
-
-  writeFileSync(join(__dirname, "../../../docs/seed_players.csv"), content);
 }
 
 main()

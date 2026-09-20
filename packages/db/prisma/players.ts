@@ -1,6 +1,6 @@
 export const players = [
   {
-    external_player_id: "wgyqjCcYRoistNUSfZgYLQ",
+    id: "wgyqjCcYRoistNUSfZgYLQ",
     name: "CerberoS",
     region: "EU",
     fame: 1000000n,
@@ -10,7 +10,7 @@ export const players = [
     stars: 4,
   },
   {
-    external_player_id: "KgXzr2H7RF2PcYKr1uJGQA",
+    id: "KgXzr2H7RF2PcYKr1uJGQA",
     name: "cephes",
     region: "EU",
     fame: 1500000n,
@@ -20,7 +20,7 @@ export const players = [
     stars: 5,
   },
   {
-    external_player_id: "5N33rMGDQH-LjQghZumvoA",
+    id: "5N33rMGDQH-LjQghZumvoA",
     name: "Phildas",
     region: "EU",
     fame: 2000000n,
@@ -30,7 +30,7 @@ export const players = [
     stars: 5,
   },
   {
-    external_player_id: "JLz63ANFSKyZ9ufMvTx_ow",
+    id: "JLz63ANFSKyZ9ufMvTx_ow",
     name: "RuskiePlacki",
     region: "EU",
     fame: 0n,
@@ -40,7 +40,7 @@ export const players = [
     stars: 0,
   },
   {
-    external_player_id: "JGIl2brARpaMppTge_1ViA",
+    id: "JGIl2brARpaMppTge_1ViA",
     name: "Yazdaa",
     region: "EU",
     fame: 0n,
@@ -50,7 +50,7 @@ export const players = [
     stars: 0,
   },
   {
-    external_player_id: "5SZHj1-bQBWIeX_rd7wshA",
+    id: "5SZHj1-bQBWIeX_rd7wshA",
     name: "cukson",
     region: "EU",
     fame: 0n,
@@ -60,7 +60,7 @@ export const players = [
     stars: 0,
   },
   {
-    external_player_id: "EtKrtOAsSOuR1bd4KrCNSQ",
+    id: "EtKrtOAsSOuR1bd4KrCNSQ",
     name: "gromalol",
     region: "EU",
     fame: 0n,

@@ -7,7 +7,7 @@ export default defineConfig({
   schema: "packages/db/prisma/schema.prisma",
   migrations: {
     path: "packages/db/prisma/migrations",
-    seed: "node --import tsx packages/db/prisma/seed.ts"
+    seed: "pnpm --filter @albion/db exec tsx prisma/seed.ts"
   },
   datasource: {
     url: process.env["DATABASE_URL"] ?? (() => {
