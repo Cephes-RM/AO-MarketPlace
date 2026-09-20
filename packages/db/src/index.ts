@@ -96,6 +96,81 @@ export async function getAllianceById(allianceId: string) {
 export type AllianceProfile = NonNullable<Awaited<ReturnType<typeof getAllianceById>>>;
 
 /**
+ * Everything the landing page shows: how much the database tracks, plus the
+ * highest ranked players and guilds as entry points into the site.
+ */
+export async function getPlatformSummary({ topPlayers = 5, topGuilds = 5 } = {}) {
+  const [playerCount, guildCount, allianceCount, killEventCount, players, guilds] =
+    await Promise.all([
+      prisma.player.count(),
+      prisma.guild.count(),
+      prisma.alliance.count(),
+      prisma.killEvent.count(),
+      prisma.player.findMany({
+        orderBy: [{ killFame: "desc" }, { name: "asc" }],
+        take: topPlayers,
+        select: {
+          external_player_id: true,
+          name: true,
+          rating: true,
+          stars: true,
+          killFame: true,
+          deathFame: true,
+        },
+      }),
+      prisma.guild.findMany({
+        take: topGuilds,
+        select: { external_guild_id: true, name: true },
+      }),
+    ]);
+
+  // Player.guildId references Guild.external_guild_id.
+  const guildStats = await prisma.player.groupBy({
+    by: ["guildId"],
+    where: { guildId: { in: guilds.map((guild) => guild.external_guild_id) } },
+    _count: { _all: true },
+    _sum: { killFame: true, deathFame: true },
+  });
+  const statsByGuild = new Map(guildStats.map((stats) => [stats.guildId, stats]));
+
+  return {
+    counts: {
+      players: playerCount,
+      guilds: guildCount,
+      alliances: allianceCount,
+      killEvents: killEventCount,
+    },
+    topPlayers: players.map((player) => ({
+      id: player.external_player_id,
+      name: player.name,
+      rating: player.rating,
+      stars: player.stars,
+      killFame: player.killFame.toString(),
+      deathFame: player.deathFame.toString(),
+    })),
+    topGuilds: guilds
+      .map((guild) => {
+        const stats = statsByGuild.get(guild.external_guild_id);
+        return {
+          id: guild.external_guild_id,
+          name: guild.name,
+          memberCount: stats?._count._all ?? 0,
+          killFame: stats?._sum.killFame ?? BigInt(0),
+          deathFame: stats?._sum.deathFame ?? BigInt(0),
+        };
+      })
+      .sort((a, b) => (b.killFame > a.killFame ? 1 : b.killFame < a.killFame ? -1 : 0))
+      .map((guild) => ({
+        ...guild,
+        killFame: guild.killFame.toString(),
+        deathFame: guild.deathFame.toString(),
+      })),
+  };
+}
+
+export type PlatformSummary = Awaited<ReturnType<typeof getPlatformSummary>>;
+
+/**
  * Returns a guild with its alliance and member list,
  * or null when the id is malformed or no guild has it.
  */

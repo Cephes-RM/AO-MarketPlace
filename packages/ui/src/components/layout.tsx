@@ -19,14 +19,16 @@ export interface SectionProps {
   title?: string;
   /** Shown on the right of the title, e.g. a link or a count. */
   action?: ReactNode;
+  /** Anchor target, so the section can be linked to. */
+  id?: string;
   children: ReactNode;
   className?: string;
 }
 
 /** A titled block of page content. */
-export function Section({ title, action, children, className }: SectionProps) {
+export function Section({ title, action, id, children, className }: SectionProps) {
   return (
-    <section className={cn("flex flex-col gap-3", className)}>
+    <section id={id} className={cn("flex flex-col gap-3", className)}>
       {title || action ? (
         <div className="flex items-center justify-between gap-3">
           {title ? <h2 className="text-lg font-semibold">{title}</h2> : <span />}

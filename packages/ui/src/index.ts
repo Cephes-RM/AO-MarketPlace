@@ -11,6 +11,7 @@ export {
 } from "./components/EquipmentLoadout";
 export { ErrorState, type ErrorStateProps } from "./components/ErrorState";
 export { GuildHeader, type GuildHeaderProps } from "./components/GuildHeader";
+export { Hero, type HeroProps } from "./components/Hero";
 export { GuildTable, type GuildRow, type GuildTableProps } from "./components/GuildTable";
 export {
   KillEventTable,
