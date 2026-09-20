@@ -8,34 +8,90 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+model Alliance {
+  id        String   @id
+  name      String   
+  guilds    Guild[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Guild {
+  id          String            @id
+  name        String            
+  allianceId  String?
+  alliance    Alliance?         @relation(fields: [allianceId], references: [id])
+  memberships GuildMembership[]
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+}
+
 model Player {
-  id                String   @id @default(cuid())
-  external_player_id String   @unique
-  name              String
-  guildName         String?
-  alliance          String?
-  region            String
-  fame              BigInt
-  killFame          BigInt
-  deathFame         BigInt
-  rating            Int      @default(0)
-  stars             Int      @default(0)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  kills KillEvent[] @relation("PlayerKills")
-  deaths KillEvent[] @relation("PlayerDeaths")
+  id               String            @id
+  name             String
+  region           String
+  fame             BigInt
+  killFame         BigInt
+  deathFame        BigInt
+  rating           Int               @default(0)
+  stars            Int               @default(0)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  kills            KillEvent[]       @relation("PlayerKills")
+  deaths           KillEvent[]       @relation("PlayerDeaths")
+  guildMemberships GuildMembership[]
+  participants     KillParticipant[]
+}
+
+model GuildMembership {
+  playerId String
+  guildId  String
+  joinedAt DateTime  @default(now())
+  leftAt   DateTime?
+  player   Player    @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  guild    Guild     @relation(fields: [guildId], references: [id])
+
+  @@id([playerId, guildId, joinedAt])
+  @@index([playerId, joinedAt])
+  @@index([guildId])
 }
 
 model KillEvent {
-  id         String   @id
+  id              String            @id
+  killerId        String
+  victimId        String
 
-  killerId   String
-  victimId   String
+  killer          Player            @relation("PlayerKills", fields: [killerId], references: [id])
+  victim          Player            @relation("PlayerDeaths", fields: [victimId], references: [id])
 
-  killer     Player   @relation("PlayerKills", fields: [killerId], references: [id])
-  victim     Player   @relation("PlayerDeaths", fields: [victimId], references: [id])
+  killerLoadout   Json?
+  victimLoadout   Json?
+  killerItemPower Float?
+  victimItemPower Float?
 
-  location   String
-  totalFame  BigInt
-  createdAt  DateTime
+  location        String
+  totalFame       BigInt
+  createdAt       DateTime
+
+  participants    KillParticipant[]
 }
+
+model KillParticipant {
+  id          String    @id @default(cuid())
+  killEventId String
+  playerId    String
+
+  damageDone  Int?
+  healingDone Int?
+  killFame    BigInt?
+  isPrimary   Boolean   @default(false)
+  loadout     Json?
+  itemPower   Float?
+
+  killEvent   KillEvent @relation(fields: [killEventId], references: [id], onDelete: Cascade)
+  player      Player    @relation(fields: [playerId], references: [id])
+
+  @@unique([killEventId, playerId])
+  @@index([playerId])
+}
+

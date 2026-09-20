@@ -9,19 +9,44 @@ export default async function PlayerPage({
 
   try {
     const player = await getPlayerById(playerId);
+    const currentMembership = player.guildMemberships.find(
+      (membership) => membership.leftAt === null,
+    );
 
     return (
       <main>
         <h1>{player.name}</h1>
         <ul>
-          <li>Guild: {player.guildName ?? "None"}</li>
-          <li>Alliance: {player.alliance ?? "None"}</li>
+          <li>Guild: {currentMembership?.guild.name ?? "None"}</li>
+          <li>Alliance: {currentMembership?.guild.allianceId ?? "None"}</li>
           <li>Fame: {player.fame}</li>
           <li>Kill Fame: {player.killFame}</li>
           <li>Death Fame: {player.deathFame}</li>
           <li>Rating: {player.rating}</li>
           <li>Stars: {player.stars}</li>
         </ul>
+        <section>
+          <h2>Guild history</h2>
+          {player.guildMemberships.length === 0 ? (
+            <p>No guild history.</p>
+          ) : (
+            <ol>
+              {player.guildMemberships.map((membership) => (
+                <li
+                  key={`${membership.playerId}-${membership.guildId}-${membership.joinedAt.toISOString()}`}
+                >
+                  <strong>
+                    {membership.guild.name}
+                    {membership.leftAt === null ? " (Current)" : ""}
+                  </strong>{" "}
+                  <span>
+                    {membership.joinedAt.toLocaleDateString()} - {membership.leftAt?.toLocaleDateString() ?? "Present"}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          )}
+        </section>
       </main>
     );
   } catch (error) {
