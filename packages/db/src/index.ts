@@ -1,7 +1,14 @@
 import { PrismaClient } from "@prisma/client";
-import { rankByAverageRating, rankingRow } from "./ranking";
+import { byPlayerRating, rankByAverageRating, rankingRow } from "./ranking";
 
-export { byAverageRating, rankByAverageRating, rankingRow, type RankingRow } from "./ranking";
+export {
+  byAverageRating,
+  byPlayerRating,
+  rankByAverageRating,
+  rankingRow,
+  type RankedPlayer,
+  type RankingRow,
+} from "./ranking";
 
 // Cache the client on globalThis in dev so hot reload doesn't exhaust
 // database connections; always create a fresh client in production.
@@ -91,9 +98,6 @@ async function currentMembersByGuild(guildIds: string[]) {
 const sumFame = (members: MemberRow[], field: "killFame" | "deathFame") =>
   members.reduce((total, member) => total + member[field], BigInt(0));
 
-const byKillFameThenName = (a: MemberRow, b: MemberRow) =>
-  b.killFame > a.killFame ? 1 : b.killFame < a.killFame ? -1 : a.name.localeCompare(b.name);
-
 const serializeMember = (member: MemberRow) => ({
   id: member.id,
   name: member.name,
@@ -173,7 +177,7 @@ export async function getGuildById(guildId: string) {
   }
 
   const members = (await currentMembersByGuild([guild.id])).get(guild.id) ?? [];
-  members.sort(byKillFameThenName);
+  members.sort(byPlayerRating);
 
   return {
     id: guild.id,
@@ -308,8 +312,9 @@ export async function getPlatformSummary({
     prisma.guild.count(),
     prisma.alliance.count(),
     prisma.killEvent.count(),
+    // Same rule as byPlayerRating: rating first, kill fame only breaks ties.
     prisma.player.findMany({
-      orderBy: [{ killFame: "desc" }, { name: "asc" }],
+      orderBy: [{ rating: "desc" }, { killFame: "desc" }, { name: "asc" }],
       take: topPlayers,
       select: {
         id: true,

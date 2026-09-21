@@ -8,7 +8,6 @@ import {
   PlayerTable,
   RankingTable,
   Section,
-  formatFame,
 } from "@albion/ui";
 import { Crest } from "@/components/Crest";
 import { ItemBand } from "@/components/ItemBand";
@@ -96,8 +95,7 @@ export default async function Home() {
         action={
           topPlayers[0] ? (
             <p className="text-xs text-neutral-500 dark:text-neutral-400">
-              Leader: {topPlayers[0].name} · {formatFame(topPlayers[0].killFame, { compact: true })}{" "}
-              kill fame
+              Leader: {topPlayers[0].name} · rating {topPlayers[0].rating}
             </p>
           ) : null
         }

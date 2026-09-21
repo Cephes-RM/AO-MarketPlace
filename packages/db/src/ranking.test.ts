@@ -1,5 +1,33 @@
 import { describe, expect, it } from "vitest";
-import { byAverageRating, rankByAverageRating, rankingRow } from "./ranking";
+import { byAverageRating, byPlayerRating, rankByAverageRating, rankingRow } from "./ranking";
+
+const player = (name: string, rating: number, killFame: number) => ({
+  name,
+  rating,
+  killFame: BigInt(killFame),
+});
+
+describe("byPlayerRating", () => {
+  it("ranks on rating, not kill fame", () => {
+    const ranked = [
+      player("Farmer", 40, 900_000_000),
+      player("Duelist", 95, 1_000),
+      player("Regular", 70, 50_000_000),
+    ].sort(byPlayerRating);
+
+    expect(ranked.map((p) => p.name)).toEqual(["Duelist", "Regular", "Farmer"]);
+  });
+
+  it("uses kill fame only to break a tie in rating, then the name", () => {
+    const ranked = [
+      player("Bravo", 80, 100),
+      player("Alpha", 80, 100),
+      player("Heavy", 80, 500),
+    ].sort(byPlayerRating);
+
+    expect(ranked.map((p) => p.name)).toEqual(["Heavy", "Alpha", "Bravo"]);
+  });
+});
 
 const entity = (name: string) => ({ id: name.toLowerCase(), name });
 

@@ -32,6 +32,26 @@ export function byAverageRating(a: RankingRow, b: RankingRow): number {
   );
 }
 
+/** The fields a player is ranked on. */
+export interface RankedPlayer {
+  name: string;
+  rating: number;
+  killFame: bigint;
+}
+
+/**
+ * Highest rating first. Kill fame only breaks ties between equal ratings, then
+ * the name, so the order is stable. getPlatformSummary applies the same rule
+ * in its Prisma orderBy.
+ */
+export function byPlayerRating(a: RankedPlayer, b: RankedPlayer): number {
+  return (
+    b.rating - a.rating ||
+    (b.killFame > a.killFame ? 1 : b.killFame < a.killFame ? -1 : 0) ||
+    a.name.localeCompare(b.name)
+  );
+}
+
 /** Ranks entities by the average rating of their members and keeps the top `limit`. */
 export function rankByAverageRating(rows: RankingRow[], limit: number): RankingRow[] {
   return [...rows].sort(byAverageRating).slice(0, limit);
