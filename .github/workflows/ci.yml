@@ -75,7 +75,7 @@ jobs:
             STATUS="❌ CI failed"
           fi
 
-          MESSAGE="$STATUS for $REPOSITORY on $REF_NAME\n$RUN_URL"
+          MESSAGE=$(printf '%s\n%s' "$STATUS for $REPOSITORY on $REF_NAME" "$RUN_URL")
           PAYLOAD=$(jq -nc --arg content "$MESSAGE" '{content: $content}')
 
           curl --fail-with-body --silent --show-error \
