@@ -13,6 +13,7 @@
     "@albion/db": "workspace:*",
     "@albion/rating-engine": "workspace:*",
     "@albion/ui": "workspace:*",
+    "@prisma/client": "^6.0.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "next": "15.5.20"

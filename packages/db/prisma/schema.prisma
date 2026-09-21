@@ -9,76 +9,89 @@ datasource db {
 }
 
 model Alliance {
-  id                   String   @id @default(cuid())
-  external_alliance_id String   @unique
-  name                 String   @unique
-  guilds               Guild[]
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  id        String   @id
+  name      String   
+  guilds    Guild[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Guild {
-  id                 String   @id @default(cuid())
-  external_guild_id  String   @unique
-  name               String   @unique
-  allianceId         String?
-  alliance           Alliance? @relation(fields: [allianceId], references: [external_alliance_id])
-  players            Player[]
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  id          String            @id
+  name        String            
+  allianceId  String?
+  alliance    Alliance?         @relation(fields: [allianceId], references: [id])
+  memberships GuildMembership[]
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
 }
 
 model Player {
-  id                String   @id @default(cuid())
-  external_player_id String   @unique
-  name              String
-  guildId           String?
-  guild             Guild?   @relation(fields: [guildId], references: [external_guild_id])
-  guildName         String?
-  alliance          String?
-  region            String
-  fame              BigInt
-  killFame          BigInt
-  deathFame         BigInt
-  rating            Int      @default(0)
-  stars             Int      @default(0)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  kills             KillEvent[] @relation("PlayerKills")
-  deaths            KillEvent[] @relation("PlayerDeaths")
+  id               String            @id
+  name             String
+  region           String
+  fame             BigInt
+  killFame         BigInt
+  deathFame        BigInt
+  rating           Int               @default(0)
+  stars            Int               @default(0)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  kills            KillEvent[]       @relation("PlayerKills")
+  deaths           KillEvent[]       @relation("PlayerDeaths")
+  guildMemberships GuildMembership[]
+  participants     KillParticipant[]
+}
+
+model GuildMembership {
+  playerId String
+  guildId  String
+  joinedAt DateTime  @default(now())
+  leftAt   DateTime?
+  player   Player    @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  guild    Guild     @relation(fields: [guildId], references: [id])
+
+  @@id([playerId, guildId, joinedAt])
+  @@index([playerId, joinedAt])
+  @@index([guildId])
 }
 
 model KillEvent {
-  id         String   @id
+  id              String            @id
+  killerId        String
+  victimId        String
 
-  killerId   String
-  victimId   String
+  killer          Player            @relation("PlayerKills", fields: [killerId], references: [id])
+  victim          Player            @relation("PlayerDeaths", fields: [victimId], references: [id])
 
-  killer     Player   @relation("PlayerKills", fields: [killerId], references: [id])
-  victim     Player   @relation("PlayerDeaths", fields: [victimId], references: [id])
+  killerLoadout   Json?
+  victimLoadout   Json?
+  killerItemPower Float?
+  victimItemPower Float?
 
-  location   String
-  totalFame  BigInt
-  createdAt  DateTime
+  location        String
+  totalFame       BigInt
+  createdAt       DateTime
 
-  items      KillEventItem[]
+  participants    KillParticipant[]
 }
 
-/// One equipped item worn during a kill event.
-/// role is "KILLER" or "VICTIM"; slot is an Albion equipment slot such as
-/// "mainHand" or "cape". A slot the player left empty simply has no row.
-model KillEventItem {
-  id       String @id @default(cuid())
+model KillParticipant {
+  id          String    @id @default(cuid())
+  killEventId String
+  playerId    String
 
-  eventId  String
-  event    KillEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  damageDone  Int?
+  healingDone Int?
+  killFame    BigInt?
+  isPrimary   Boolean   @default(false)
+  loadout     Json?
+  itemPower   Float?
 
-  role     String
-  slot     String
-  itemType String
-  quality  Int?
-  count    Int?
+  killEvent   KillEvent @relation(fields: [killEventId], references: [id], onDelete: Cascade)
+  player      Player    @relation(fields: [playerId], references: [id])
 
-  @@unique([eventId, role, slot])
-  @@index([itemType])
+  @@unique([killEventId, playerId])
+  @@index([playerId])
 }
+

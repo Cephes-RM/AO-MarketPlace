@@ -16,7 +16,15 @@ export async function getPlayerById(playerId: string) {
   }
 
   try {
-    const player = await prisma.player.findUnique({ where: { external_player_id: playerId } });
+    const player = await prisma.player.findUnique({
+      where: { id: playerId },
+      include: {
+        guildMemberships: {
+          include: { guild: true },
+          orderBy: { joinedAt: "asc" },
+        },
+      },
+    });
 
     if (!player) {
       throw new Error("Player not found");
@@ -37,6 +45,61 @@ export async function getPlayerById(playerId: string) {
 // Albion ids are URL-safe base64 strings (e.g. "LR8GuAcsS9iGmvYgFVl0hQ").
 const ALBION_ID = /^[A-Za-z0-9_-]{1,64}$/;
 
+/** A player currently in a guild, shaped for the listings. */
+interface MemberRow {
+  id: string;
+  name: string;
+  rating: number;
+  stars: number;
+  killFame: bigint;
+  deathFame: bigint;
+}
+
+/** Current members of the given guilds, grouped by guild id. */
+async function currentMembersByGuild(guildIds: string[]) {
+  const memberships = await prisma.guildMembership.findMany({
+    where: { guildId: { in: guildIds }, leftAt: null },
+    select: {
+      guildId: true,
+      player: {
+        select: {
+          id: true,
+          name: true,
+          rating: true,
+          stars: true,
+          killFame: true,
+          deathFame: true,
+        },
+      },
+    },
+  });
+
+  const byGuild = new Map<string, MemberRow[]>();
+
+  for (const membership of memberships) {
+    const members = byGuild.get(membership.guildId) ?? [];
+    members.push(membership.player);
+    byGuild.set(membership.guildId, members);
+  }
+
+  return byGuild;
+}
+
+const sumFame = (members: MemberRow[], field: "killFame" | "deathFame") =>
+  members.reduce((total, member) => total + member[field], BigInt(0));
+
+const byKillFameThenName = (a: MemberRow, b: MemberRow) =>
+  b.killFame > a.killFame ? 1 : b.killFame < a.killFame ? -1 : a.name.localeCompare(b.name);
+
+const serializeMember = (member: MemberRow) => ({
+  id: member.id,
+  name: member.name,
+  rating: member.rating,
+  stars: member.stars,
+  killFame: member.killFame.toString(),
+  deathFame: member.deathFame.toString(),
+});
+
 /**
  * Returns an alliance with its member guilds and fame totals,
  * or null when the id is malformed or no alliance has it.
@@ -47,38 +110,31 @@ export async function getAllianceById(allianceId: string) {
   }
 
   const alliance = await prisma.alliance.findUnique({
-    where: { external_alliance_id: allianceId },
-    include: { guilds: true },
+    where: { id: allianceId },
+    include: { guilds: { select: { id: true, name: true } } },
   });
 
   if (!alliance) {
     return null;
   }
 
-  // Player.guildId references Guild.external_guild_id.
-  const guildStats = await prisma.player.groupBy({
-    by: ["guildId"],
-    where: { guildId: { in: alliance.guilds.map((guild) => guild.external_guild_id) } },
-    _count: { _all: true },
-    _sum: { killFame: true, deathFame: true },
-  });
-  const statsByGuild = new Map(guildStats.map((stats) => [stats.guildId, stats]));
+  const membersByGuild = await currentMembersByGuild(alliance.guilds.map((guild) => guild.id));
 
   const guilds = alliance.guilds
     .map((guild) => {
-      const stats = statsByGuild.get(guild.external_guild_id);
+      const members = membersByGuild.get(guild.id) ?? [];
       return {
-        id: guild.external_guild_id,
+        id: guild.id,
         name: guild.name,
-        memberCount: stats?._count._all ?? 0,
-        killFame: stats?._sum.killFame ?? BigInt(0),
-        deathFame: stats?._sum.deathFame ?? BigInt(0),
+        memberCount: members.length,
+        killFame: sumFame(members, "killFame"),
+        deathFame: sumFame(members, "deathFame"),
       };
     })
     .sort((a, b) => b.memberCount - a.memberCount || a.name.localeCompare(b.name));
 
   return {
-    id: alliance.external_alliance_id,
+    id: alliance.id,
     name: alliance.name,
     createdAt: alliance.createdAt,
     guildCount: guilds.length,
@@ -96,6 +152,137 @@ export async function getAllianceById(allianceId: string) {
 export type AllianceProfile = NonNullable<Awaited<ReturnType<typeof getAllianceById>>>;
 
 /**
+ * Returns a guild with its alliance and current members,
+ * or null when the id is malformed or no guild has it.
+ */
+export async function getGuildById(guildId: string) {
+  if (typeof guildId !== "string" || !ALBION_ID.test(guildId)) {
+    return null;
+  }
+
+  const guild = await prisma.guild.findUnique({
+    where: { id: guildId },
+    include: { alliance: { select: { id: true, name: true } } },
+  });
+
+  if (!guild) {
+    return null;
+  }
+
+  const members = (await currentMembersByGuild([guild.id])).get(guild.id) ?? [];
+  members.sort(byKillFameThenName);
+
+  return {
+    id: guild.id,
+    name: guild.name,
+    createdAt: guild.createdAt,
+    alliance: guild.alliance,
+    memberCount: members.length,
+    killFame: sumFame(members, "killFame").toString(),
+    deathFame: sumFame(members, "deathFame").toString(),
+    members: members.map(serializeMember),
+  };
+}
+
+export type GuildProfile = NonNullable<Awaited<ReturnType<typeof getGuildById>>>;
+
+/** An equipped item, flattened out of a KillEvent loadout. */
+export interface EquippedItem {
+  slot: string;
+  itemType: string;
+  quality: number | null;
+  count: number | null;
+}
+
+// Loadout slots are stored snake_case; the UI names them like the Albion API does.
+const SLOT_NAMES: Record<string, string> = {
+  main_hand: "mainHand",
+  off_hand: "offHand",
+  head: "head",
+  body: "armor",
+  shoe: "shoes",
+  bag: "bag",
+  cape: "cape",
+  mount: "mount",
+  potion: "potion",
+  food: "food",
+};
+
+const asRecord = (value: unknown): Record<string, unknown> | null =>
+  typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+
+const asNumber = (value: unknown): number | null =>
+  typeof value === "number" && Number.isFinite(value) ? value : null;
+
+/**
+ * Flattens a stored loadout into one entry per filled slot.
+ * Slots that are absent, null or missing an item type are skipped, so a
+ * partly recorded loadout still renders.
+ */
+export function parseLoadout(loadout: unknown): EquippedItem[] {
+  const slots = asRecord(loadout);
+  if (!slots) return [];
+
+  const items: EquippedItem[] = [];
+
+  for (const [rawSlot, rawItem] of Object.entries(slots)) {
+    const slot = SLOT_NAMES[rawSlot];
+    const item = asRecord(rawItem);
+    if (!slot || !item) continue;
+
+    const itemType = item.id ?? item.type;
+    if (typeof itemType !== "string" || itemType.length === 0) continue;
+
+    items.push({
+      slot,
+      itemType,
+      quality: asNumber(item.quality),
+      count: asNumber(item.count),
+    });
+  }
+
+  return items;
+}
+
+/**
+ * Returns a player's most recent kill events, newest first, with the equipment
+ * worn by both sides. An unknown player, or one with no events, gives an empty
+ * list; an event stored without a loadout gives an empty one.
+ */
+export async function getPlayerKillEvents(playerId: string, { limit = 10 } = {}) {
+  if (typeof playerId !== "string" || !ALBION_ID.test(playerId)) {
+    return [];
+  }
+
+  const events = await prisma.killEvent.findMany({
+    where: { OR: [{ killerId: playerId }, { victimId: playerId }] },
+    orderBy: { createdAt: "desc" },
+    take: limit,
+    include: {
+      killer: { select: { id: true, name: true } },
+      victim: { select: { id: true, name: true } },
+    },
+  });
+
+  return events.map((event) => ({
+    id: event.id,
+    killer: event.killer,
+    victim: event.victim,
+    location: event.location,
+    totalFame: event.totalFame.toString(),
+    occurredAt: event.createdAt,
+    killerItemPower: event.killerItemPower,
+    victimItemPower: event.victimItemPower,
+    killerEquipment: parseLoadout(event.killerLoadout),
+    victimEquipment: parseLoadout(event.victimLoadout),
+  }));
+}
+
+export type PlayerKillEvent = Awaited<ReturnType<typeof getPlayerKillEvents>>[number];
+
+/**
  * Everything the landing page shows: how much the database tracks, plus the
  * highest ranked players and guilds as entry points into the site.
  */
@@ -110,7 +297,7 @@ export async function getPlatformSummary({ topPlayers = 5, topGuilds = 5 } = {})
         orderBy: [{ killFame: "desc" }, { name: "asc" }],
         take: topPlayers,
         select: {
-          external_player_id: true,
+          id: true,
           name: true,
           rating: true,
           stars: true,
@@ -118,20 +305,10 @@ export async function getPlatformSummary({ topPlayers = 5, topGuilds = 5 } = {})
           deathFame: true,
         },
       }),
-      prisma.guild.findMany({
-        take: topGuilds,
-        select: { external_guild_id: true, name: true },
-      }),
+      prisma.guild.findMany({ take: topGuilds, select: { id: true, name: true } }),
     ]);
 
-  // Player.guildId references Guild.external_guild_id.
-  const guildStats = await prisma.player.groupBy({
-    by: ["guildId"],
-    where: { guildId: { in: guilds.map((guild) => guild.external_guild_id) } },
-    _count: { _all: true },
-    _sum: { killFame: true, deathFame: true },
-  });
-  const statsByGuild = new Map(guildStats.map((stats) => [stats.guildId, stats]));
+  const membersByGuild = await currentMembersByGuild(guilds.map((guild) => guild.id));
 
   return {
     counts: {
@@ -140,23 +317,16 @@ export async function getPlatformSummary({ topPlayers = 5, topGuilds = 5 } = {})
       alliances: allianceCount,
       killEvents: killEventCount,
     },
-    topPlayers: players.map((player) => ({
-      id: player.external_player_id,
-      name: player.name,
-      rating: player.rating,
-      stars: player.stars,
-      killFame: player.killFame.toString(),
-      deathFame: player.deathFame.toString(),
-    })),
+    topPlayers: players.map(serializeMember),
     topGuilds: guilds
       .map((guild) => {
-        const stats = statsByGuild.get(guild.external_guild_id);
+        const members = membersByGuild.get(guild.id) ?? [];
         return {
-          id: guild.external_guild_id,
+          id: guild.id,
           name: guild.name,
-          memberCount: stats?._count._all ?? 0,
-          killFame: stats?._sum.killFame ?? BigInt(0),
-          deathFame: stats?._sum.deathFame ?? BigInt(0),
+          memberCount: members.length,
+          killFame: sumFame(members, "killFame"),
+          deathFame: sumFame(members, "deathFame"),
         };
       })
       .sort((a, b) => (b.killFame > a.killFame ? 1 : b.killFame < a.killFame ? -1 : 0))
@@ -169,125 +339,5 @@ export async function getPlatformSummary({ topPlayers = 5, topGuilds = 5 } = {})
 }
 
 export type PlatformSummary = Awaited<ReturnType<typeof getPlatformSummary>>;
-
-/**
- * Returns a guild with its alliance and member list,
- * or null when the id is malformed or no guild has it.
- */
-export async function getGuildById(guildId: string) {
-  if (typeof guildId !== "string" || !ALBION_ID.test(guildId)) {
-    return null;
-  }
-
-  const guild = await prisma.guild.findUnique({
-    where: { external_guild_id: guildId },
-    include: {
-      alliance: { select: { external_alliance_id: true, name: true } },
-    },
-  });
-
-  if (!guild) {
-    return null;
-  }
-
-  // Player.guildId references Guild.external_guild_id.
-  const members = await prisma.player.findMany({
-    where: { guildId: guild.external_guild_id },
-    orderBy: [{ killFame: "desc" }, { name: "asc" }],
-    select: {
-      external_player_id: true,
-      name: true,
-      rating: true,
-      stars: true,
-      killFame: true,
-      deathFame: true,
-    },
-  });
-
-  const killFame = members.reduce((total, member) => total + member.killFame, BigInt(0));
-  const deathFame = members.reduce((total, member) => total + member.deathFame, BigInt(0));
-
-  return {
-    id: guild.external_guild_id,
-    name: guild.name,
-    createdAt: guild.createdAt,
-    alliance: guild.alliance
-      ? { id: guild.alliance.external_alliance_id, name: guild.alliance.name }
-      : null,
-    memberCount: members.length,
-    killFame: killFame.toString(),
-    deathFame: deathFame.toString(),
-    members: members.map((member) => ({
-      id: member.external_player_id,
-      name: member.name,
-      rating: member.rating,
-      stars: member.stars,
-      killFame: member.killFame.toString(),
-      deathFame: member.deathFame.toString(),
-    })),
-  };
-}
-
-export type GuildProfile = NonNullable<Awaited<ReturnType<typeof getGuildById>>>;
-
-/** An equipped item, as stored in KillEventItem. */
-export interface EquippedItem {
-  slot: string;
-  itemType: string;
-  quality: number | null;
-  count: number | null;
-}
-
-/**
- * Returns a player's most recent kill events, newest first, with the equipment
- * worn by both sides. An unknown player, or one with no events, gives an empty
- * list; an event recorded before equipment was tracked gives empty loadouts.
- */
-export async function getPlayerKillEvents(playerId: string, { limit = 10 } = {}) {
-  if (typeof playerId !== "string" || !ALBION_ID.test(playerId)) {
-    return [];
-  }
-
-  const player = await prisma.player.findUnique({
-    where: { external_player_id: playerId },
-    select: { id: true },
-  });
-
-  if (!player) {
-    return [];
-  }
-
-  const events = await prisma.killEvent.findMany({
-    where: { OR: [{ killerId: player.id }, { victimId: player.id }] },
-    orderBy: { createdAt: "desc" },
-    take: limit,
-    include: {
-      killer: { select: { external_player_id: true, name: true } },
-      victim: { select: { external_player_id: true, name: true } },
-      items: true,
-    },
-  });
-
-  const equipmentFor = (
-    items: { role: string; slot: string; itemType: string; quality: number | null; count: number | null }[],
-    role: string,
-  ): EquippedItem[] =>
-    items
-      .filter((item) => item.role === role)
-      .map(({ slot, itemType, quality, count }) => ({ slot, itemType, quality, count }));
-
-  return events.map((event) => ({
-    id: event.id,
-    killer: { id: event.killer.external_player_id, name: event.killer.name },
-    victim: { id: event.victim.external_player_id, name: event.victim.name },
-    location: event.location,
-    totalFame: event.totalFame.toString(),
-    occurredAt: event.createdAt,
-    killerEquipment: equipmentFor(event.items, "KILLER"),
-    victimEquipment: equipmentFor(event.items, "VICTIM"),
-  }));
-}
-
-export type PlayerKillEvent = Awaited<ReturnType<typeof getPlayerKillEvents>>[number];
 
 export * from "@prisma/client";
