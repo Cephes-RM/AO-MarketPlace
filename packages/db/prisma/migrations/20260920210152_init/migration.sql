@@ -2,6 +2,8 @@
 CREATE TABLE "Alliance" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
+    "rating" INTEGER NOT NULL DEFAULT 0,
+    "stars" INTEGER NOT NULL DEFAULT 0,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -13,6 +15,8 @@ CREATE TABLE "Guild" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "allianceId" TEXT,
+    "rating" INTEGER NOT NULL DEFAULT 0,
+    "stars" INTEGER NOT NULL DEFAULT 0,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
