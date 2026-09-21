@@ -7,7 +7,7 @@ import { Card } from "./Card";
 import { EquipmentLoadout, type EquipmentItem } from "./EquipmentLoadout";
 
 export interface KillEventParticipant {
-  /** The Albion player id (`external_player_id`), used to build profile links. */
+  /** The player id (`Player.id`, the Albion player id), used to build profile links. */
   id: string;
   name: string;
 }

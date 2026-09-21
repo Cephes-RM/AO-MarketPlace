@@ -52,7 +52,7 @@ import { PlayerHeader, StatCard, formatFame } from "@albion/ui";
 <StatCard label="Kill Fame" value={formatFame(player.killFame, { compact: true })} />
 ```
 
-`KillEventTable` links players to `/players/<external_player_id>` by default; override with
+`KillEventTable` links players to `/players/<id>` by default; override with
 `getPlayerHref`.
 
 ## Preview

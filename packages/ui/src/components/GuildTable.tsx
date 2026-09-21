@@ -4,7 +4,7 @@ import { fameRatio, formatFame, type FameValue } from "../lib/format";
 import { Card } from "./Card";
 
 export interface GuildRow {
-  /** The Albion guild id (`external_guild_id`). */
+  /** The guild id (`Guild.id`, the Albion guild id). */
   id: string;
   name: string;
   memberCount: number;
