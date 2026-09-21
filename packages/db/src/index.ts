@@ -1,4 +1,7 @@
 import { PrismaClient } from "@prisma/client";
+import { rankByAverageRating, rankingRow } from "./ranking";
+
+export { byAverageRating, rankByAverageRating, rankingRow, type RankingRow } from "./ranking";
 
 // Cache the client on globalThis in dev so hot reload doesn't exhaust
 // database connections; always create a fresh client in production.
@@ -286,29 +289,63 @@ export type PlayerKillEvent = Awaited<ReturnType<typeof getPlayerKillEvents>>[nu
  * Everything the landing page shows: how much the database tracks, plus the
  * highest ranked players and guilds as entry points into the site.
  */
-export async function getPlatformSummary({ topPlayers = 5, topGuilds = 5 } = {}) {
-  const [playerCount, guildCount, allianceCount, killEventCount, players, guilds] =
-    await Promise.all([
-      prisma.player.count(),
-      prisma.guild.count(),
-      prisma.alliance.count(),
-      prisma.killEvent.count(),
-      prisma.player.findMany({
-        orderBy: [{ killFame: "desc" }, { name: "asc" }],
-        take: topPlayers,
-        select: {
-          id: true,
-          name: true,
-          rating: true,
-          stars: true,
-          killFame: true,
-          deathFame: true,
-        },
-      }),
-      prisma.guild.findMany({ take: topGuilds, select: { id: true, name: true } }),
-    ]);
+export async function getPlatformSummary({
+  topPlayers = 5,
+  topGuilds = 5,
+  topAlliances = 5,
+} = {}) {
+  const [
+    playerCount,
+    guildCount,
+    allianceCount,
+    killEventCount,
+    players,
+    guilds,
+    alliances,
+    memberships,
+  ] = await Promise.all([
+    prisma.player.count(),
+    prisma.guild.count(),
+    prisma.alliance.count(),
+    prisma.killEvent.count(),
+    prisma.player.findMany({
+      orderBy: [{ killFame: "desc" }, { name: "asc" }],
+      take: topPlayers,
+      select: {
+        id: true,
+        name: true,
+        rating: true,
+        stars: true,
+        killFame: true,
+        deathFame: true,
+      },
+    }),
+    prisma.guild.findMany({ select: { id: true, name: true, allianceId: true } }),
+    prisma.alliance.findMany({ select: { id: true, name: true } }),
+    // Every current member's rating, so guilds and alliances can be ranked on it.
+    prisma.guildMembership.findMany({
+      where: { leftAt: null },
+      select: { guildId: true, player: { select: { rating: true } } },
+    }),
+  ]);
 
-  const membersByGuild = await currentMembersByGuild(guilds.map((guild) => guild.id));
+  const ratingsByGuild = new Map<string, number[]>();
+  for (const membership of memberships) {
+    const ratings = ratingsByGuild.get(membership.guildId) ?? [];
+    ratings.push(membership.player.rating);
+    ratingsByGuild.set(membership.guildId, ratings);
+  }
+
+  const guildRows = guilds.map((guild) => rankingRow(guild, ratingsByGuild.get(guild.id) ?? []));
+
+  const allianceRows = alliances.map((alliance) =>
+    rankingRow(
+      alliance,
+      guilds
+        .filter((guild) => guild.allianceId === alliance.id)
+        .flatMap((guild) => ratingsByGuild.get(guild.id) ?? []),
+    ),
+  );
 
   return {
     counts: {
@@ -318,23 +355,8 @@ export async function getPlatformSummary({ topPlayers = 5, topGuilds = 5 } = {})
       killEvents: killEventCount,
     },
     topPlayers: players.map(serializeMember),
-    topGuilds: guilds
-      .map((guild) => {
-        const members = membersByGuild.get(guild.id) ?? [];
-        return {
-          id: guild.id,
-          name: guild.name,
-          memberCount: members.length,
-          killFame: sumFame(members, "killFame"),
-          deathFame: sumFame(members, "deathFame"),
-        };
-      })
-      .sort((a, b) => (b.killFame > a.killFame ? 1 : b.killFame < a.killFame ? -1 : 0))
-      .map((guild) => ({
-        ...guild,
-        killFame: guild.killFame.toString(),
-        deathFame: guild.deathFame.toString(),
-      })),
+    topGuilds: rankByAverageRating(guildRows, topGuilds),
+    topAlliances: rankByAverageRating(allianceRows, topAlliances),
   };
 }
 

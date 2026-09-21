@@ -2,10 +2,11 @@ import Link from "next/link";
 import { cn } from "../lib/cn";
 import { fameRatio, formatFame, type FameValue } from "../lib/format";
 import { Card } from "./Card";
+import { RankBadge } from "./RankBadge";
 import { StarRating } from "./StarRating";
 
 export interface PlayerRow {
-  /** The Albion player id (`external_player_id`). */
+  /** The player id (`Player.id`, the Albion player id). */
   id: string;
   name: string;
   rating: number;
@@ -22,13 +23,6 @@ export interface PlayerTableProps {
   emptyMessage?: string;
   className?: string;
 }
-
-// Gold, silver, bronze for the podium; plain iron for everyone below it.
-const MEDALS = [
-  "border-gold-300/60 bg-gold-500/15 text-gold-300",
-  "border-neutral-300/50 bg-neutral-300/10 text-neutral-300",
-  "border-amber-700/60 bg-amber-700/15 text-amber-600",
-];
 
 const defaultPlayerHref = (playerId: string) => `/players/${encodeURIComponent(playerId)}`;
 
@@ -87,15 +81,7 @@ export function PlayerTable({
               <tr key={player.id} className="hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
                 {showRank ? (
                   <td className="px-4 py-3">
-                    <span
-                      className={cn(
-                        "inline-flex size-7 items-center justify-center rounded-full border font-display text-xs font-bold",
-                        MEDALS[index] ??
-                          "border-neutral-200 text-neutral-500 dark:border-neutral-700 dark:text-neutral-400",
-                      )}
-                    >
-                      {index + 1}
-                    </span>
+                    <RankBadge rank={index + 1} />
                   </td>
                 ) : null}
                 <td className="px-4 py-3 font-medium whitespace-nowrap">

@@ -30,6 +30,12 @@ export {
 export { PlayerHeader, type PlayerHeaderProps } from "./components/PlayerHeader";
 export { PlayerTable, type PlayerRow, type PlayerTableProps } from "./components/PlayerTable";
 export { ProfileHeader, type ProfileHeaderProps } from "./components/ProfileHeader";
+export { RankBadge, type RankBadgeProps } from "./components/RankBadge";
+export {
+  RankingTable,
+  type RankingRow,
+  type RankingTableProps,
+} from "./components/RankingTable";
 export {
   ProfileSkeleton,
   Skeleton,

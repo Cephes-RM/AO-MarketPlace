@@ -3,10 +3,10 @@ import Link from "next/link";
 import { getPlatformSummary } from "@albion/db";
 import {
   Card,
-  GuildTable,
   Hero,
   PageContainer,
   PlayerTable,
+  RankingTable,
   Section,
   formatFame,
 } from "@albion/ui";
@@ -21,7 +21,7 @@ export const dynamic = "force-dynamic";
 const COUNT_FORMAT = new Intl.NumberFormat("en-US");
 
 export default async function Home() {
-  const { counts, topPlayers, topGuilds } = await getPlatformSummary();
+  const { counts, topPlayers, topGuilds, topAlliances } = await getPlatformSummary();
 
   const plaques = [
     { label: "Players", value: counts.players },
@@ -109,13 +109,29 @@ export default async function Home() {
         />
       </Section>
 
-      <Section title="Guilds">
-        <GuildTable
-          guilds={topGuilds}
-          getGuildHref={(guildId) => `/guilds/${encodeURIComponent(guildId)}`}
-          emptyMessage="No guilds tracked yet."
-        />
-      </Section>
+      {/* Ranked on the average rating of each roster's current members. */}
+      <div className="grid gap-8 lg:grid-cols-2">
+        <Section title="Top guilds">
+          <RankingTable
+            rows={topGuilds}
+            nameLabel="Guild"
+            getHref={(guildId) => `/guilds/${encodeURIComponent(guildId)}`}
+            emptyMessage="No guilds tracked yet."
+          />
+        </Section>
+
+        <Section title="Top alliances">
+          <RankingTable
+            rows={topAlliances}
+            nameLabel="Alliance"
+            getHref={(allianceId) => `/alliances/${encodeURIComponent(allianceId)}`}
+            emptyMessage="No alliances tracked yet."
+          />
+        </Section>
+      </div>
+      <p className="-mt-6 text-xs text-neutral-500 dark:text-neutral-400">
+        Guilds and alliances are ranked by the average rating of their current members.
+      </p>
 
       <p className="text-center text-xs text-neutral-500 dark:text-neutral-400">
         Data imported from the public Albion Online API · item art from Albion&apos;s render
