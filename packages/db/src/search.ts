@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "./client";
 
 const MIN_QUERY_LENGTH = 2;
@@ -27,7 +28,27 @@ const emptyResults = (): SearchResults => ({
   alliances: [],
 });
 
-/** Case-insensitive prefix search across players, guilds, and alliances. */
+function escapeLike(value: string): string {
+  return value.replace(/[\\%_]/g, "\\$&");
+}
+
+/** Exact match, then prefix (shorter names first), then a match anywhere else. */
+function rankOrder(nameColumn: Prisma.Sql, term: string, prefixPattern: string): Prisma.Sql {
+  return Prisma.sql`
+    CASE
+      WHEN lower(${nameColumn}) = lower(${term}) THEN 0
+      WHEN lower(${nameColumn}) LIKE lower(${prefixPattern}) ESCAPE '\\' THEN 1
+      ELSE 2
+    END ASC,
+    CASE
+      WHEN lower(${nameColumn}) LIKE lower(${prefixPattern}) ESCAPE '\\'
+      THEN char_length(${nameColumn})
+    END ASC NULLS LAST,
+    ${nameColumn} ASC
+  `;
+}
+
+/** Case-insensitive search for a name that contains the query anywhere. */
 export async function searchByName(query: string): Promise<SearchResults> {
   const term = query.trim();
 
@@ -35,48 +56,43 @@ export async function searchByName(query: string): Promise<SearchResults> {
     return emptyResults();
   }
 
-  const name = { startsWith: term, mode: "insensitive" as const };
+  const containsPattern = `%${escapeLike(term)}%`;
+  const prefixPattern = `${escapeLike(term)}%`;
 
   const [players, guilds, alliances] = await Promise.all([
-    prisma.player.findMany({
-      where: { name },
-      orderBy: { name: "asc" },
-      take: MAX_RESULTS,
-      select: {
-        id: true,
-        name: true,
-        guildMemberships: {
-          where: { leftAt: null },
-          take: 1,
-          select: { guild: { select: { name: true } } },
-        },
-      },
-    }),
-    prisma.guild.findMany({
-      where: { name },
-      orderBy: { name: "asc" },
-      take: MAX_RESULTS,
-      select: { id: true, name: true },
-    }),
-    prisma.alliance.findMany({
-      where: { name },
-      orderBy: { name: "asc" },
-      take: MAX_RESULTS,
-      select: { id: true, name: true },
-    }),
+    prisma.$queryRaw<SearchPlayer[]>(Prisma.sql`
+      SELECT
+        p."id",
+        p."name",
+        g."name" AS "guildName"
+      FROM "Player" p
+      LEFT JOIN "GuildMembership" m
+        ON m."playerId" = p."id" AND m."leftAt" IS NULL
+      LEFT JOIN "Guild" g ON g."id" = m."guildId"
+      WHERE p."name" ILIKE ${containsPattern} ESCAPE '\\'
+      ORDER BY ${rankOrder(Prisma.sql`p."name"`, term, prefixPattern)}
+      LIMIT ${MAX_RESULTS}
+    `),
+    prisma.$queryRaw<SearchNamedEntity[]>(Prisma.sql`
+      SELECT "id", "name"
+      FROM "Guild"
+      WHERE "name" ILIKE ${containsPattern} ESCAPE '\\'
+      ORDER BY ${rankOrder(Prisma.sql`"name"`, term, prefixPattern)}
+      LIMIT ${MAX_RESULTS}
+    `),
+    prisma.$queryRaw<SearchNamedEntity[]>(Prisma.sql`
+      SELECT "id", "name"
+      FROM "Alliance"
+      WHERE "name" ILIKE ${containsPattern} ESCAPE '\\'
+      ORDER BY ${rankOrder(Prisma.sql`"name"`, term, prefixPattern)}
+      LIMIT ${MAX_RESULTS}
+    `),
   ]);
 
-  const pickedPlayers = players.slice(0, MAX_RESULTS).map((player) => ({
-    id: player.id,
-    name: player.name,
-    guildName: player.guildMemberships[0]?.guild.name ?? null,
-  }));
+  const pickedPlayers = players.slice(0, MAX_RESULTS);
   const remainingAfterPlayers = MAX_RESULTS - pickedPlayers.length;
   const pickedGuilds = guilds.slice(0, remainingAfterPlayers);
-  const pickedAlliances = alliances.slice(
-    0,
-    remainingAfterPlayers - pickedGuilds.length,
-  );
+  const pickedAlliances = alliances.slice(0, remainingAfterPlayers - pickedGuilds.length);
 
   return {
     players: pickedPlayers,
