@@ -2,7 +2,7 @@ import { PrismaClient } from "@prisma/client";
 import { alliances } from "./alliances";
 import { guilds } from "./guilds";
 import { players } from "./players";
-import { events } from "./killEvents";
+import { eventPlayers, events } from "./killEvents";
 import { guildMemberships } from "./guildMemberships";
 
 const prisma = new PrismaClient();
@@ -44,8 +44,9 @@ async function main() {
     });
   }
 
-  // 3) Seed players without keeping unused return value.
-  for (const player of players) {
+  // 3) Seed the original players, then anyone who appears in a real kill
+  // but was not part of that original list.
+  for (const player of [...players, ...eventPlayers]) {
     await prisma.player.upsert({
       where: {
         id: player.id,
@@ -94,7 +95,13 @@ async function main() {
     });
   }
 
-  // 5) Seed kill events, participants, and equipment.
+  // 5) Drop the old placeholder fights ("1".."4") and seed real events.
+  await prisma.killEvent.deleteMany({
+    where: {
+      id: { in: ["1", "2", "3", "4"] },
+    },
+  });
+
   for (const event of events) {
     const killer = await prisma.player.findUnique({
       where: {
@@ -120,24 +127,29 @@ async function main() {
       update: {
         killerId: killer.id,
         victimId: victim.id,
+        raw: event.raw,
+        battleId: event.battleId,
+        occurredAt: event.occurredAt,
         totalFame: event.totalFame,
         location: event.location,
-        killerLoadout: event.killerLoadout ?? undefined,
-        victimLoadout: event.victimLoadout ?? undefined,
-        killerItemPower: event.killerItemPower,
-        victimItemPower: event.victimItemPower,
+        killerLoadout: event.killerLoadout,
+        victimLoadout: event.victimLoadout,
+        killerItemPower: event.killerItemPower ?? null,
+        victimItemPower: event.victimItemPower ?? null,
       },
       create: {
         id: event.id,
         killerId: killer.id,
         victimId: victim.id,
+        raw: event.raw,
+        battleId: event.battleId,
+        occurredAt: event.occurredAt,
         totalFame: event.totalFame,
         location: event.location,
-        createdAt: event.createdAt,
-        killerLoadout: event.killerLoadout ?? undefined,
-        victimLoadout: event.victimLoadout ?? undefined,
-        killerItemPower: event.killerItemPower,
-        victimItemPower: event.victimItemPower,
+        killerLoadout: event.killerLoadout,
+        victimLoadout: event.victimLoadout,
+        killerItemPower: event.killerItemPower ?? null,
+        victimItemPower: event.victimItemPower ?? null,
       },
     });
 

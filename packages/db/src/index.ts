@@ -1,5 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 
+export type { LoadoutItem, PlayerLoadout } from "./loadout";
+
 // Cache the client on globalThis in dev so hot reload doesn't exhaust
 // database connections; always create a fresh client in production.
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
