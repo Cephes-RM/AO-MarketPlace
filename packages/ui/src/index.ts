@@ -44,9 +44,22 @@ export {
   type SkeletonProps,
   type TableSkeletonProps,
 } from "./components/Skeleton";
+export { SearchBox, type SearchBoxProps } from "./components/SearchBox";
+export { SiteFooter, type SiteFooterProps } from "./components/SiteFooter";
+export { SiteHeader, type SiteHeaderProps } from "./components/SiteHeader";
 export { StarRating, type StarRatingProps } from "./components/StarRating";
 export { StatCard, type StatCardProps } from "./components/StatCard";
 export { cn } from "./lib/cn";
+export {
+  EMPTY_SEARCH_RESULTS,
+  flattenSearchGroups,
+  moveHighlight,
+  toSearchGroups,
+  type SearchEntityType,
+  type SearchGroup,
+  type SearchOption,
+  type SearchResults,
+} from "./lib/search";
 export {
   fameRatio,
   formatDateTime,
