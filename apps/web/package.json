@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack",
+    "dev": "dotenv -e ../../.env -- next dev --turbopack",
     "build": "next build",
-    "start": "next start",
+    "start": "dotenv -e ../../.env -- next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit"
   },
@@ -27,6 +27,7 @@
     "tailwindcss": "^4",
     "eslint": "^9",
     "eslint-config-next": "15.5.20",
-    "@eslint/eslintrc": "^3"
+    "@eslint/eslintrc": "^3",
+    "dotenv-cli": "^8.0.0"
   }
 }
