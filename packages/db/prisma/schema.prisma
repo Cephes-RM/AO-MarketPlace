@@ -11,8 +11,6 @@ datasource db {
 model Alliance {
   id        String   @id
   name      String   
-  rating    Int               @default(0)
-  stars     Int               @default(0)
   guilds    Guild[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -24,8 +22,6 @@ model Guild {
   id          String            @id
   name        String            
   allianceId  String?
-  rating      Int               @default(0)
-  stars       Int               @default(0)
   alliance    Alliance?         @relation(fields: [allianceId], references: [id])
   memberships GuildMembership[]
   createdAt   DateTime          @default(now())
