@@ -3,7 +3,7 @@ import { prisma } from "./client";
 
 const MIN_QUERY_LENGTH = 2;
 const MAX_QUERY_LENGTH = 64;
-const MAX_RESULTS = 20;
+const MAX_RESULTS_PER_CATEGORY = 5;
 
 export interface SearchPlayer {
   id: string;
@@ -71,32 +71,23 @@ export async function searchByName(query: string): Promise<SearchResults> {
       LEFT JOIN "Guild" g ON g."id" = m."guildId"
       WHERE p."name" ILIKE ${containsPattern} ESCAPE '\\'
       ORDER BY ${rankOrder(Prisma.sql`p."name"`, term, prefixPattern)}
-      LIMIT ${MAX_RESULTS}
+      LIMIT ${MAX_RESULTS_PER_CATEGORY}
     `),
     prisma.$queryRaw<SearchNamedEntity[]>(Prisma.sql`
       SELECT "id", "name"
       FROM "Guild"
       WHERE "name" ILIKE ${containsPattern} ESCAPE '\\'
       ORDER BY ${rankOrder(Prisma.sql`"name"`, term, prefixPattern)}
-      LIMIT ${MAX_RESULTS}
+      LIMIT ${MAX_RESULTS_PER_CATEGORY}
     `),
     prisma.$queryRaw<SearchNamedEntity[]>(Prisma.sql`
       SELECT "id", "name"
       FROM "Alliance"
       WHERE "name" ILIKE ${containsPattern} ESCAPE '\\'
       ORDER BY ${rankOrder(Prisma.sql`"name"`, term, prefixPattern)}
-      LIMIT ${MAX_RESULTS}
+      LIMIT ${MAX_RESULTS_PER_CATEGORY}
     `),
   ]);
 
-  const pickedPlayers = players.slice(0, MAX_RESULTS);
-  const remainingAfterPlayers = MAX_RESULTS - pickedPlayers.length;
-  const pickedGuilds = guilds.slice(0, remainingAfterPlayers);
-  const pickedAlliances = alliances.slice(0, remainingAfterPlayers - pickedGuilds.length);
-
-  return {
-    players: pickedPlayers,
-    guilds: pickedGuilds,
-    alliances: pickedAlliances,
-  };
+  return { players, guilds, alliances };
 }
