@@ -88,6 +88,10 @@ model KillEvent {
   createdAt       DateTime          @default(now())
 
   participants    KillParticipant[]
+
+  @@index([killerId, occurredAt])
+  @@index([victimId, occurredAt])
+  @@index([battleId])
 }
 
 model KillParticipant {
