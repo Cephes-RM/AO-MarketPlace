@@ -1,6 +1,10 @@
 import type { Metadata } from "next";
 import { Cinzel, Geist, Geist_Mono } from "next/font/google";
+import { SiteFooter, SiteHeader } from "@albion/ui";
+import { Crest } from "@/components/Crest";
 import "./globals.css";
+
+const PRODUCT_NAME = "Albion Platform";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -36,9 +40,11 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} ${cinzel.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} ${cinzel.variable} flex min-h-screen flex-col antialiased`}
       >
-        {children}
+        <SiteHeader productName={PRODUCT_NAME} logo={<Crest className="h-6 w-auto" />} />
+        <div className="flex-1">{children}</div>
+        <SiteFooter productName={PRODUCT_NAME} />
       </body>
     </html>
   );

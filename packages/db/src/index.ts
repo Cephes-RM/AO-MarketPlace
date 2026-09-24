@@ -1,5 +1,12 @@
 import { PrismaClient } from "@prisma/client";
 import { byPlayerRating, rankByAverageRating, rankingRow } from "./ranking";
+import { normalizeSearchTerm } from "./search";
+
+export {
+  MAX_SEARCH_LENGTH,
+  MIN_SEARCH_LENGTH,
+  normalizeSearchTerm,
+} from "./search";
 
 export {
   byAverageRating,
@@ -366,5 +373,49 @@ export async function getPlatformSummary({
 }
 
 export type PlatformSummary = Awaited<ReturnType<typeof getPlatformSummary>>;
+
+/** What the site search returns, grouped the way the results are shown. */
+export interface SearchResults {
+  players: { id: string; name: string; rating: number }[];
+  guilds: { id: string; name: string }[];
+  alliances: { id: string; name: string }[];
+}
+
+const EMPTY_RESULTS: SearchResults = { players: [], guilds: [], alliances: [] };
+
+/**
+ * Finds players, guilds and alliances whose name contains the query,
+ * case-insensitively. A query shorter than MIN_SEARCH_LENGTH returns nothing
+ * rather than every row in the table.
+ */
+export async function searchEntities(query: unknown, { limit = 5 } = {}): Promise<SearchResults> {
+  const term = normalizeSearchTerm(query);
+  if (term === null) return EMPTY_RESULTS;
+
+  const name = { contains: term, mode: "insensitive" } as const;
+
+  const [players, guilds, alliances] = await Promise.all([
+    prisma.player.findMany({
+      where: { name },
+      orderBy: [{ rating: "desc" }, { name: "asc" }],
+      take: limit,
+      select: { id: true, name: true, rating: true },
+    }),
+    prisma.guild.findMany({
+      where: { name },
+      orderBy: { name: "asc" },
+      take: limit,
+      select: { id: true, name: true },
+    }),
+    prisma.alliance.findMany({
+      where: { name },
+      orderBy: { name: "asc" },
+      take: limit,
+      select: { id: true, name: true },
+    }),
+  ]);
+
+  return { players, guilds, alliances };
+}
 
 export * from "@prisma/client";
