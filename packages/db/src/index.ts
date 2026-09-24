@@ -1,6 +1,7 @@
 import { prisma } from "./client";
 
 export { prisma };
+export type { LoadoutItem, PlayerLoadout } from "./loadout";
 
 export async function getPlayerById(playerId: string) {
   if (!playerId || typeof playerId !== "string") {

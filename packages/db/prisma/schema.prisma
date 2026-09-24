@@ -74,14 +74,18 @@ model KillEvent {
   killer          Player            @relation("PlayerKills", fields: [killerId], references: [id])
   victim          Player            @relation("PlayerDeaths", fields: [victimId], references: [id])
 
+  raw             Json?
+  battleId        String?
+  occurredAt      DateTime
+
   killerLoadout   Json?
   victimLoadout   Json?
   killerItemPower Float?
   victimItemPower Float?
 
-  location        String
+  location        String?
   totalFame       BigInt
-  createdAt       DateTime
+  createdAt       DateTime          @default(now())
 
   participants    KillParticipant[]
 }
