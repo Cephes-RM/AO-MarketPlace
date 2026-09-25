@@ -153,14 +153,8 @@ async function main() {
       },
     });
 
-    // Seed assisting participants if available
     if (event.participants && event.participants.length > 0) {
       for (const participant of event.participants) {
-        // Avoid adding the primary killer as an assistant
-        if (participant.playerId === killer.id) {
-          continue;
-        }
-
         const participantPlayer = await prisma.player.findUnique({
           where: { id: participant.playerId },
         });

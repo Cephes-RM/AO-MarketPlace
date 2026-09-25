@@ -1,16 +1,7 @@
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "./client";
 
+export { prisma };
 export type { LoadoutItem, PlayerLoadout } from "./loadout";
-
-// Cache the client on globalThis in dev so hot reload doesn't exhaust
-// database connections; always create a fresh client in production.
-const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
-
-export const prisma = globalForPrisma.prisma ?? new PrismaClient();
-
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = prisma;
-}
 
 export async function getPlayerById(playerId: string) {
   if (!playerId || typeof playerId !== "string") {
@@ -43,5 +34,12 @@ export async function getPlayerById(playerId: string) {
     throw error;
   }
 }
+
+export {
+  searchByName,
+  type SearchNamedEntity,
+  type SearchPlayer,
+  type SearchResults,
+} from "./search";
 
 export * from "@prisma/client";

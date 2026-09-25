@@ -183,7 +183,7 @@ export const events: KillEventSeed[] = apiEvents.map((event) => {
     const fighter = readFighter(entry);
     const person = asRecord(entry);
 
-    if (!fighter || !person || fighter.id === killer.id || seenParticipants.has(fighter.id)) {
+    if (!fighter || !person || seenParticipants.has(fighter.id)) {
       continue;
     }
 
@@ -195,7 +195,7 @@ export const events: KillEventSeed[] = apiEvents.map((event) => {
       damageDone: asInt(person.DamageDone),
       healingDone: asInt(person.SupportHealingDone),
       killFame: asBigInt(person.KillFame),
-      isPrimary: false,
+      isPrimary: fighter.id === killer.id,
       itemPower: asFloat(person.AverageItemPower),
       loadout: toLoadout(person.Equipment),
     });
