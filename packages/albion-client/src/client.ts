@@ -16,6 +16,7 @@ import type {
   AlbionPagination,
   AlbionPlayerProfile,
   AlbionRegion,
+  AlbionRetryOptions,
   AlbionSearchResult,
 } from "./types.ts";
 
@@ -26,8 +27,10 @@ const GAMEINFO_BASE_URLS: Record<AlbionRegion, string> = {
 };
 
 const ITEM_RENDER_BASE_URL = "https://render.albiononline.com/v1/item/";
-const REQUEST_TIMEOUT_MS = 10_000;
-const RETRY_DELAYS_MS = [30_000, 60_000, 120_000] as const;
+const DEFAULT_RETRY_OPTIONS = {
+  timeoutMs: 10_000,
+  delaysMs: [30_000, 60_000, 120_000],
+} as const;
 
 /** Returns true only for an Albion server cluster supported by this package. */
 export function isAlbionRegion(value: unknown): value is AlbionRegion {
@@ -47,6 +50,7 @@ export function createAlbionClient(options: AlbionClientOptions): AlbionClient {
     options.baseUrl ?? GAMEINFO_BASE_URLS[options.region],
   );
   const request = resolveFetch(options.fetch);
+  const retry = resolveRetryOptions(options.retry);
 
   return {
     gameinfo: {
@@ -152,21 +156,21 @@ export function createAlbionClient(options: AlbionClientOptions): AlbionClient {
 
         if (
           !isRetryableStatus(response.status) ||
-          attempt === RETRY_DELAYS_MS.length
+          attempt === retry.delaysMs.length
         ) {
           return response;
         }
 
-        await wait(retryDelay(attempt, response));
+        await wait(retryDelay(attempt, retry.delaysMs, response));
       } catch (error) {
         if (
           !isRetryableError(error) ||
-          attempt === RETRY_DELAYS_MS.length
+          attempt === retry.delaysMs.length
         ) {
           throw error;
         }
 
-        await wait(retryDelay(attempt));
+        await wait(retryDelay(attempt, retry.delaysMs));
       }
     }
   }
@@ -189,7 +193,7 @@ export function createAlbionClient(options: AlbionClientOptions): AlbionClient {
           timeout = setTimeout(() => {
             controller.abort();
             reject(timeoutError);
-          }, REQUEST_TIMEOUT_MS);
+          }, retry.timeoutMs);
         }),
       ]);
     } finally {
@@ -218,6 +222,21 @@ function resolveFetch(injectedFetch?: AlbionFetch): AlbionFetch {
   }
 
   return (url, init) => runtimeFetch(url, init);
+}
+
+function resolveRetryOptions(options?: AlbionRetryOptions): {
+  timeoutMs: number;
+  delaysMs: readonly number[];
+} {
+  const timeoutMs = options?.timeoutMs ?? DEFAULT_RETRY_OPTIONS.timeoutMs;
+  const delaysMs = options?.delaysMs ?? DEFAULT_RETRY_OPTIONS.delaysMs;
+
+  assertPositiveInteger(timeoutMs, "retry.timeoutMs");
+  delaysMs.forEach((delayMs, index) =>
+    assertNonNegativeInteger(delayMs, `retry.delaysMs[${index}]`),
+  );
+
+  return { timeoutMs, delaysMs };
 }
 
 function normaliseBaseUrl(url: string): string {
@@ -287,11 +306,15 @@ function isRetryableError(error: unknown): boolean {
   return isTimeout(error) || error instanceof TypeError;
 }
 
-function retryDelay(attempt: number, response?: AlbionFetchResponse): number {
+function retryDelay(
+  attempt: number,
+  delaysMs: readonly number[],
+  response?: AlbionFetchResponse,
+): number {
   const retryAfter = response?.headers?.get("retry-after");
   const retryAfterMs = retryAfterDelay(retryAfter);
 
-  return retryAfterMs ?? Math.floor(Math.random() * RETRY_DELAYS_MS[attempt]);
+  return retryAfterMs ?? Math.floor(Math.random() * delaysMs[attempt]);
 }
 
 function retryAfterDelay(value: string | null | undefined): number | undefined {

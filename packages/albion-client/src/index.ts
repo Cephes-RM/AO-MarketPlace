@@ -16,6 +16,7 @@ export type {
   AlbionPagination,
   AlbionPlayerProfile,
   AlbionRegion,
+  AlbionRetryOptions,
   AlbionSearchEntity,
   AlbionSearchPlayer,
   AlbionSearchResult,

@@ -97,6 +97,50 @@ describe("createAlbionClient", () => {
     }
   });
 
+  it("uses configured retry delays instead of the defaults", async () => {
+    let requestCount = 0;
+    const fetch: AlbionFetch = async () => {
+      requestCount += 1;
+      return failedResponse(503);
+    };
+    const client = createAlbionClient({
+      region: "west",
+      fetch,
+      retry: { delaysMs: [] },
+    });
+
+    await expect(client.gameinfo.getPlayer("player-1")).rejects.toMatchObject({
+      status: 503,
+    } satisfies Partial<AlbionApiError>);
+    expect(requestCount).toBe(1);
+  });
+
+  it("uses the configured request timeout", async () => {
+    let requestCount = 0;
+    const fetch: AlbionFetch = async () => {
+      requestCount += 1;
+      return new Promise(() => {});
+    };
+    const client = createAlbionClient({
+      region: "west",
+      fetch,
+      retry: { timeoutMs: 1, delaysMs: [] },
+    });
+
+    try {
+      vi.useFakeTimers();
+      const player = client.gameinfo.getPlayer("player-1");
+      const rejected = expect(player).rejects.toMatchObject({
+        name: "TimeoutError",
+      });
+      await vi.advanceTimersByTimeAsync(1);
+      await rejected;
+      expect(requestCount).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("retries a transient 5xx response before parsing the successful response", async () => {
     const random = vi.spyOn(Math, "random").mockReturnValue(0);
     let requestCount = 0;
@@ -203,12 +247,16 @@ describe("createAlbionClient", () => {
   });
 
   it("keeps valid events and reports malformed events through the tolerant method", async () => {
+    const malformedEvent = {
+      ...(eventPayload(99) as Record<string, unknown>),
+      TimeStamp: undefined,
+    };
     const fetch: AlbionFetch = async () =>
-      jsonResponse([eventPayload(), { EventId: "not-a-number" }]);
+      jsonResponse([eventPayload(), malformedEvent]);
     const client = createAlbionClient({ region: "east", fetch });
 
     await expect(client.gameinfo.getRecentEvents()).rejects.toThrow(
-      "Invalid Albion kill event EventId: expected a number.",
+      "Invalid Albion kill event TimeStamp: expected a non-empty string.",
     );
     await expect(client.gameinfo.getRecentEventsTolerant()).resolves.toEqual({
       records: [
@@ -224,7 +272,8 @@ describe("createAlbionClient", () => {
       failures: [
         {
           index: 1,
-          reason: "Invalid Albion kill event EventId: expected a number.",
+          eventId: 99,
+          reason: "Invalid Albion kill event TimeStamp: expected a non-empty string.",
         },
       ],
     });
