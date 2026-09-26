@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { AlbionApiError, createAlbionClient, isAlbionRegion } from "./index.ts";
 import type { AlbionFetch, AlbionFetchResponse } from "./types.ts";
 
@@ -9,6 +9,30 @@ function jsonResponse(payload: unknown): AlbionFetchResponse {
     statusText: "OK",
     json: async () => payload,
     arrayBuffer: async () => new ArrayBuffer(0),
+  };
+}
+
+function failedResponse(status: number, retryAfter?: string): AlbionFetchResponse {
+  return {
+    ok: false,
+    status,
+    statusText: "Service Unavailable",
+    ...(retryAfter === undefined
+      ? {}
+      : { headers: { get: (name) => (name === "retry-after" ? retryAfter : null) } }),
+    json: async () => null,
+    arrayBuffer: async () => new ArrayBuffer(0),
+  };
+}
+
+function eventPayload(id = 42): unknown {
+  return {
+    EventId: id,
+    TimeStamp: "2026-09-18T12:00:00Z",
+    Location: null,
+    Killer: { Id: "killer-1", Name: "Killer" },
+    Victim: { Id: "victim-1", Name: "Victim" },
+    Participants: [],
   };
 }
 
@@ -53,20 +77,153 @@ describe("createAlbionClient", () => {
   });
 
   it("returns an AlbionApiError when the API request fails", async () => {
-    const fetch: AlbionFetch = async () => ({
-      ok: false,
-      status: 503,
-      statusText: "Service Unavailable",
-      json: async () => null,
-      arrayBuffer: async () => new ArrayBuffer(0),
-    });
+    const random = vi.spyOn(Math, "random").mockReturnValue(0);
+    let requestCount = 0;
+    const fetch: AlbionFetch = async () => {
+      requestCount += 1;
+      return failedResponse(503);
+    };
     const client = createAlbionClient({ region: "west", fetch });
 
+    try {
+      await expect(client.gameinfo.getPlayer("player-1")).rejects.toMatchObject({
+        name: "AlbionApiError",
+        status: 503,
+        message: "Albion Gameinfo API request failed with 503. Service Unavailable",
+      } satisfies Partial<AlbionApiError>);
+      expect(requestCount).toBe(4);
+    } finally {
+      random.mockRestore();
+    }
+  });
+
+  it("uses configured retry delays instead of the defaults", async () => {
+    let requestCount = 0;
+    const fetch: AlbionFetch = async () => {
+      requestCount += 1;
+      return failedResponse(503);
+    };
+    const client = createAlbionClient({
+      region: "west",
+      fetch,
+      retry: { delaysMs: [] },
+    });
+
     await expect(client.gameinfo.getPlayer("player-1")).rejects.toMatchObject({
-      name: "AlbionApiError",
       status: 503,
-      message: "Albion Gameinfo API request failed with 503. Service Unavailable",
     } satisfies Partial<AlbionApiError>);
+    expect(requestCount).toBe(1);
+  });
+
+  it("uses the configured request timeout", async () => {
+    let requestCount = 0;
+    const fetch: AlbionFetch = async () => {
+      requestCount += 1;
+      return new Promise(() => {});
+    };
+    const client = createAlbionClient({
+      region: "west",
+      fetch,
+      retry: { timeoutMs: 1, delaysMs: [] },
+    });
+
+    try {
+      vi.useFakeTimers();
+      const player = client.gameinfo.getPlayer("player-1");
+      const rejected = expect(player).rejects.toMatchObject({
+        name: "TimeoutError",
+      });
+      await vi.advanceTimersByTimeAsync(1);
+      await rejected;
+      expect(requestCount).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("retries a transient 5xx response before parsing the successful response", async () => {
+    const random = vi.spyOn(Math, "random").mockReturnValue(0);
+    let requestCount = 0;
+    const fetch: AlbionFetch = async () => {
+      requestCount += 1;
+      return requestCount === 1
+        ? failedResponse(502)
+        : jsonResponse({ Id: "player-1", Name: "Cerber0S" });
+    };
+    const client = createAlbionClient({ region: "west", fetch });
+
+    try {
+      await expect(client.gameinfo.getPlayer("player-1")).resolves.toEqual({
+        id: "player-1",
+        name: "Cerber0S",
+      });
+      expect(requestCount).toBe(2);
+    } finally {
+      random.mockRestore();
+    }
+  });
+
+  it("retries 429 responses and honors Retry-After", async () => {
+    let requestCount = 0;
+    const fetch: AlbionFetch = async () => {
+      requestCount += 1;
+      return requestCount === 1
+        ? failedResponse(429, "0")
+        : jsonResponse({ Id: "player-1", Name: "Cerber0S" });
+    };
+    const client = createAlbionClient({ region: "west", fetch });
+
+    await expect(client.gameinfo.getPlayer("player-1")).resolves.toEqual({
+      id: "player-1",
+      name: "Cerber0S",
+    });
+    expect(requestCount).toBe(2);
+  });
+
+  it("retries a network error", async () => {
+    const random = vi.spyOn(Math, "random").mockReturnValue(0);
+    let requestCount = 0;
+    const fetch: AlbionFetch = async () => {
+      requestCount += 1;
+      if (requestCount === 1) throw new TypeError("fetch failed");
+      return jsonResponse({ Id: "player-1", Name: "Cerber0S" });
+    };
+    const client = createAlbionClient({ region: "west", fetch });
+
+    try {
+      await expect(client.gameinfo.getPlayer("player-1")).resolves.toEqual({
+        id: "player-1",
+        name: "Cerber0S",
+      });
+      expect(requestCount).toBe(2);
+    } finally {
+      random.mockRestore();
+    }
+  });
+
+  it("retries a timeout from an injected fetch", async () => {
+    const random = vi.spyOn(Math, "random").mockReturnValue(0);
+    let requestCount = 0;
+    const fetch: AlbionFetch = async () => {
+      requestCount += 1;
+      if (requestCount === 1) return new Promise(() => {});
+      return jsonResponse({ Id: "player-1", Name: "Cerber0S" });
+    };
+    const client = createAlbionClient({ region: "west", fetch });
+
+    try {
+      vi.useFakeTimers();
+      const player = client.gameinfo.getPlayer("player-1");
+      await vi.runAllTimersAsync();
+      await expect(player).resolves.toEqual({
+        id: "player-1",
+        name: "Cerber0S",
+      });
+      expect(requestCount).toBe(2);
+    } finally {
+      vi.useRealTimers();
+      random.mockRestore();
+    }
   });
 
   it("adds valid pagination values to recent-event requests", async () => {
@@ -87,6 +244,39 @@ describe("createAlbionClient", () => {
     expect(requests).toEqual([
       "https://example.test/api/events?limit=25&offset=50",
     ]);
+  });
+
+  it("keeps valid events and reports malformed events through the tolerant method", async () => {
+    const malformedEvent = {
+      ...(eventPayload(99) as Record<string, unknown>),
+      TimeStamp: undefined,
+    };
+    const fetch: AlbionFetch = async () =>
+      jsonResponse([eventPayload(), malformedEvent]);
+    const client = createAlbionClient({ region: "east", fetch });
+
+    await expect(client.gameinfo.getRecentEvents()).rejects.toThrow(
+      "Invalid Albion kill event TimeStamp: expected a non-empty string.",
+    );
+    await expect(client.gameinfo.getRecentEventsTolerant()).resolves.toEqual({
+      records: [
+        {
+          id: 42,
+          occurredAt: "2026-09-18T12:00:00Z",
+          location: null,
+          killer: { id: "killer-1", name: "Killer" },
+          victim: { id: "victim-1", name: "Victim" },
+          participants: [],
+        },
+      ],
+      failures: [
+        {
+          index: 1,
+          eventId: 99,
+          reason: "Invalid Albion kill event TimeStamp: expected a non-empty string.",
+        },
+      ],
+    });
   });
 
   it("rejects invalid input before making an API request", async () => {

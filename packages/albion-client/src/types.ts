@@ -5,13 +5,14 @@ export interface AlbionFetchResponse {
   ok: boolean;
   status: number;
   statusText: string;
+  headers?: Pick<Headers, "get">;
   json(): Promise<unknown>;
   arrayBuffer(): Promise<ArrayBuffer>;
 }
 
 export type AlbionFetch = (
   url: string,
-  init?: { headers?: Record<string, string> },
+  init?: { headers?: Record<string, string>; signal?: AbortSignal },
 ) => Promise<AlbionFetchResponse>;
 
 export interface AlbionClientOptions {
@@ -21,6 +22,15 @@ export interface AlbionClientOptions {
   baseUrl?: string;
   /** Defaults to the runtime's global fetch. */
   fetch?: AlbionFetch;
+  /** Uses the default timeout and retry delays when omitted. */
+  retry?: AlbionRetryOptions;
+}
+
+export interface AlbionRetryOptions {
+  /** Maximum duration of one request in milliseconds. */
+  timeoutMs?: number;
+  /** Delay before each retry; an empty list disables retries. */
+  delaysMs?: readonly number[];
 }
 
 export interface AlbionSearchEntity {
@@ -104,6 +114,17 @@ export interface AlbionKillboardEvent {
   groupMembers?: AlbionEventPlayer[];
 }
 
+export interface AlbionParseFailure {
+  index: number;
+  eventId?: number;
+  reason: string;
+}
+
+export interface AlbionBatchResult<T> {
+  records: T[];
+  failures: AlbionParseFailure[];
+}
+
 export interface AlbionPagination {
   limit?: number;
   offset?: number;
@@ -115,6 +136,10 @@ export interface AlbionClient {
     searchPlayers(query: string): Promise<AlbionSearchResult>;
     /** Get the most recent kill events, newest first. */
     getRecentEvents(pagination?: AlbionPagination): Promise<AlbionKillboardEvent[]>;
+    /** Get recent events while retaining valid records if individual records are malformed. */
+    getRecentEventsTolerant(
+      pagination?: AlbionPagination,
+    ): Promise<AlbionBatchResult<AlbionKillboardEvent>>;
     /** Get one kill event by its numeric event id. */
     getEvent(eventId: number): Promise<AlbionKillboardEvent>;
     /** Get a player's profile. */
