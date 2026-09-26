@@ -4,6 +4,7 @@ export {
 } from "./client.ts";
 export { AlbionApiError } from "./errors.ts";
 export type {
+  AlbionBatchResult,
   AlbionClient,
   AlbionClientOptions,
   AlbionEventPlayer,
@@ -11,6 +12,7 @@ export type {
   AlbionFetch,
   AlbionItem,
   AlbionKillboardEvent,
+  AlbionParseFailure,
   AlbionPagination,
   AlbionPlayerProfile,
   AlbionRegion,

@@ -1,8 +1,10 @@
 import type {
+  AlbionBatchResult,
   AlbionEquipment,
   AlbionEventPlayer,
   AlbionItem,
   AlbionKillboardEvent,
+  AlbionParseFailure,
   AlbionPlayerProfile,
   AlbionSearchEntity,
   AlbionSearchPlayer,
@@ -46,6 +48,27 @@ export function parseKillboardEvents(payload: unknown): AlbionKillboardEvent[] {
   return requiredArray(payload, "killboard events").map((entry) =>
     parseKillboardEvent(entry),
   );
+}
+
+/** Parses a killboard batch without discarding valid events because one event is malformed. */
+export function parseKillboardEventsTolerant(
+  payload: unknown,
+): AlbionBatchResult<AlbionKillboardEvent> {
+  const records: AlbionKillboardEvent[] = [];
+  const failures: AlbionParseFailure[] = [];
+
+  requiredArray(payload, "killboard events").forEach((entry, index) => {
+    try {
+      records.push(parseKillboardEvent(entry));
+    } catch (error) {
+      failures.push({
+        index,
+        reason: error instanceof Error ? error.message : String(error),
+      });
+    }
+  });
+
+  return { records, failures };
 }
 
 export function parseKillboardEvent(value: unknown): AlbionKillboardEvent {
