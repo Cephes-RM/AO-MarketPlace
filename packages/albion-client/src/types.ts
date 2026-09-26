@@ -22,6 +22,15 @@ export interface AlbionClientOptions {
   baseUrl?: string;
   /** Defaults to the runtime's global fetch. */
   fetch?: AlbionFetch;
+  /** Uses the default timeout and retry delays when omitted. */
+  retry?: AlbionRetryOptions;
+}
+
+export interface AlbionRetryOptions {
+  /** Maximum duration of one request in milliseconds. */
+  timeoutMs?: number;
+  /** Delay before each retry; an empty list disables retries. */
+  delaysMs?: readonly number[];
 }
 
 export interface AlbionSearchEntity {
@@ -107,6 +116,7 @@ export interface AlbionKillboardEvent {
 
 export interface AlbionParseFailure {
   index: number;
+  eventId?: number;
   reason: string;
 }
 

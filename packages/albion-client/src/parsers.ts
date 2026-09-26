@@ -61,14 +61,27 @@ export function parseKillboardEventsTolerant(
     try {
       records.push(parseKillboardEvent(entry));
     } catch (error) {
+      const eventId = eventIdOf(entry);
       failures.push({
         index,
+        ...(eventId === undefined ? {} : { eventId }),
         reason: error instanceof Error ? error.message : String(error),
       });
     }
   });
 
   return { records, failures };
+}
+
+function eventIdOf(value: unknown): number | undefined {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return undefined;
+  }
+
+  const eventId = (value as Record<string, unknown>).EventId;
+  return typeof eventId === "number" && Number.isFinite(eventId)
+    ? eventId
+    : undefined;
 }
 
 export function parseKillboardEvent(value: unknown): AlbionKillboardEvent {
