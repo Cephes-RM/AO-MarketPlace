@@ -120,48 +120,51 @@ export function createAlbionClient(options: AlbionClientOptions): AlbionClient {
         }
 
         const url = `${ITEM_RENDER_BASE_URL}${encodeURIComponent(normalizedType)}`;
-        const response = await requestWithRetry(url, {
-          headers: { accept: "image/*" },
-        });
-
-        if (!response.ok) {
-          throw toAlbionApiError(response, url, "Albion item render API");
-        }
-
-        return response.arrayBuffer();
+        return requestWithRetry(
+          url,
+          { headers: { accept: "image/*" } },
+          (response) => response.arrayBuffer(),
+          "Albion item render API",
+        );
       },
     },
   };
 
   async function getJson(path: string): Promise<unknown> {
     const url = `${baseUrl}${path}`;
-    const response = await requestWithRetry(url, {
-      headers: { accept: "application/json" },
-    });
-
-    if (!response.ok) {
-      throw toAlbionApiError(response, url);
-    }
-
-    return response.json();
+    return requestWithRetry(
+      url,
+      { headers: { accept: "application/json" } },
+      (response) => response.json(),
+    );
   }
 
-  async function requestWithRetry(
+  async function requestWithRetry<T>(
     url: string,
     init: { headers: Record<string, string> },
-  ): Promise<Awaited<ReturnType<AlbionFetch>>> {
+    read: (response: AlbionFetchResponse) => Promise<T>,
+    service = "Albion Gameinfo API",
+  ): Promise<T> {
     for (let attempt = 0; ; attempt += 1) {
       try {
-        const response = await requestWithTimeout(url, init);
+        const result = await requestWithTimeout(url, init, async (response) =>
+          response.ok
+            ? { response, value: await read(response) }
+            : { response },
+        );
 
-        if (
-          !isRetryableStatus(response.status) ||
-          attempt === retry.delaysMs.length
-        ) {
-          return response;
+        if ("value" in result) {
+          return result.value as T;
         }
 
-        await wait(retryDelay(attempt, retry.delaysMs, response));
+        if (
+          !isRetryableStatus(result.response.status) ||
+          attempt === retry.delaysMs.length
+        ) {
+          throw toAlbionApiError(result.response, url, service);
+        }
+
+        await wait(retryDelay(attempt, retry.delaysMs, result.response));
       } catch (error) {
         if (
           !isRetryableError(error) ||
@@ -175,10 +178,11 @@ export function createAlbionClient(options: AlbionClientOptions): AlbionClient {
     }
   }
 
-  async function requestWithTimeout(
+  async function requestWithTimeout<T>(
     url: string,
     init: { headers: Record<string, string> },
-  ): Promise<Awaited<ReturnType<AlbionFetch>>> {
+    read: (response: AlbionFetchResponse) => Promise<T>,
+  ): Promise<T> {
     const controller = new AbortController();
     let timeout: ReturnType<typeof setTimeout> | undefined;
     const timeoutError = Object.assign(
@@ -188,7 +192,7 @@ export function createAlbionClient(options: AlbionClientOptions): AlbionClient {
 
     try {
       return await Promise.race([
-        request(url, { ...init, signal: controller.signal }),
+        request(url, { ...init, signal: controller.signal }).then(read),
         new Promise<never>((_, reject) => {
           timeout = setTimeout(() => {
             controller.abort();
@@ -314,7 +318,9 @@ function retryDelay(
   const retryAfter = response?.headers?.get("retry-after");
   const retryAfterMs = retryAfterDelay(retryAfter);
 
-  return retryAfterMs ?? Math.floor(Math.random() * delaysMs[attempt]);
+  return retryAfterMs === undefined
+    ? Math.floor(Math.random() * delaysMs[attempt])
+    : Math.min(retryAfterMs, Math.max(...delaysMs));
 }
 
 function retryAfterDelay(value: string | null | undefined): number | undefined {
