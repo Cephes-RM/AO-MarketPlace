@@ -180,6 +180,67 @@ describe("createAlbionClient", () => {
     expect(requestCount).toBe(2);
   });
 
+  it("caps Retry-After at the largest configured delay", async () => {
+    let requestCount = 0;
+    const fetch: AlbionFetch = async () => {
+      requestCount += 1;
+      return requestCount === 1
+        ? failedResponse(429, "3600")
+        : jsonResponse({ Id: "player-1", Name: "Cerber0S" });
+    };
+    const client = createAlbionClient({
+      region: "west",
+      fetch,
+      retry: { delaysMs: [5] },
+    });
+
+    try {
+      vi.useFakeTimers();
+      const player = client.gameinfo.getPlayer("player-1");
+      const resolved = expect(player).resolves.toEqual({
+        id: "player-1",
+        name: "Cerber0S",
+      });
+      await vi.advanceTimersByTimeAsync(5);
+      await resolved;
+      expect(requestCount).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("caps each Retry-After wait at the largest configured delay", async () => {
+    let requestCount = 0;
+    const fetch: AlbionFetch = async () => {
+      requestCount += 1;
+      return requestCount < 3
+        ? failedResponse(429, "3600")
+        : jsonResponse({ Id: "player-1", Name: "Cerber0S" });
+    };
+    const client = createAlbionClient({
+      region: "west",
+      fetch,
+      retry: { delaysMs: [5, 10] },
+    });
+
+    try {
+      vi.useFakeTimers();
+      const player = client.gameinfo.getPlayer("player-1");
+      const resolved = expect(player).resolves.toMatchObject({ id: "player-1" });
+      await vi.advanceTimersByTimeAsync(9);
+      expect(requestCount).toBe(1);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(requestCount).toBe(2);
+      await vi.advanceTimersByTimeAsync(9);
+      expect(requestCount).toBe(2);
+      await vi.advanceTimersByTimeAsync(1);
+      await resolved;
+      expect(requestCount).toBe(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("retries a network error", async () => {
     const random = vi.spyOn(Math, "random").mockReturnValue(0);
     let requestCount = 0;
@@ -223,6 +284,32 @@ describe("createAlbionClient", () => {
     } finally {
       vi.useRealTimers();
       random.mockRestore();
+    }
+  });
+
+  it("times out and retries when the response body hangs", async () => {
+    let requestCount = 0;
+    const fetch: AlbionFetch = async () => {
+      requestCount += 1;
+      return requestCount === 1
+        ? { ...jsonResponse(null), json: async () => new Promise(() => {}) }
+        : jsonResponse({ Id: "player-1", Name: "Cerber0S" });
+    };
+    const client = createAlbionClient({
+      region: "west",
+      fetch,
+      retry: { timeoutMs: 1, delaysMs: [0] },
+    });
+
+    try {
+      vi.useFakeTimers();
+      const player = client.gameinfo.getPlayer("player-1");
+      const resolved = expect(player).resolves.toMatchObject({ id: "player-1" });
+      await vi.runAllTimersAsync();
+      await resolved;
+      expect(requestCount).toBe(2);
+    } finally {
+      vi.useRealTimers();
     }
   });
 
