@@ -13,7 +13,10 @@
     "typecheck": "turbo typecheck",
     "lint": "turbo lint",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "bench:seed": "docker exec -i pg-tutorial psql -U postgres -d AO-db < scripts/seed-benchmark.sql",
+    "bench:run": "pwsh -File ./scripts/bench.ps1",
+    "bench:smoke": "pwsh -File ./scripts/bench.ps1 -Clients 4 -Duration 10 -Warmup 3"
   },
   "devDependencies": {
     "dotenv": "^17.4.2",

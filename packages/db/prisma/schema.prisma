@@ -10,7 +10,8 @@ datasource db {
 
 model Alliance {
   id        String   @id
-  name      String   
+  /// GIN trigram index managed via custom migration: 20260923134430_add_trigram_indexes_for_name_search
+  name      String
   rating    Int               @default(0)
   stars     Int               @default(0)
   guilds    Guild[]
@@ -20,7 +21,8 @@ model Alliance {
 
 model Guild {
   id          String            @id
-  name        String            
+  /// GIN trigram index managed via custom migration: 20260923134430_add_trigram_indexes_for_name_search
+  name        String
   allianceId  String?
   rating      Int               @default(0)
   stars       Int               @default(0)
@@ -32,6 +34,7 @@ model Guild {
 
 model Player {
   id               String            @id
+  /// GIN trigram index managed via custom migration: 20260923134430_add_trigram_indexes_for_name_search
   name             String
   region           String
   fame             BigInt
