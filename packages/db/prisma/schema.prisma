@@ -10,6 +10,7 @@ datasource db {
 
 model Alliance {
   id        String   @id
+  /// GIN trigram index managed via custom migration: 20261001120000_add_trigram_indexes_for_name_search
   name      String   
   /// Cache written only by the refresh job. Do not read until populated.
   rating    Int?
@@ -18,13 +19,12 @@ model Alliance {
   guilds    Guild[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  @@index([name])
 }
 
 model Guild {
   id          String            @id
-  name        String            
+  /// GIN trigram index managed via custom migration: 20261001120000_add_trigram_indexes_for_name_search
+  name        String
   allianceId  String?
   /// Cache written only by the refresh job. Do not read until populated.
   rating      Int?
@@ -34,12 +34,11 @@ model Guild {
   memberships GuildMembership[]
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
-
-  @@index([name])
 }
 
 model Player {
   id               String            @id
+  /// GIN trigram index managed via custom migration: 20261001120000_add_trigram_indexes_for_name_search
   name             String
   region           String
   fame             BigInt
@@ -53,8 +52,6 @@ model Player {
   deaths           KillEvent[]       @relation("PlayerDeaths")
   guildMemberships GuildMembership[]
   participants     KillParticipant[]
-
-  @@index([name])
 }
 
 model GuildMembership {

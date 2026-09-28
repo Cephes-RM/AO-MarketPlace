@@ -4,6 +4,10 @@ node_modules/
 # zabala dial cerberos
 package-lock.json
 yarn.lock
+*.dump
+AO-db-seeded.dump
+# Benchmark output (raw per-transaction latency logs)
+bench-results/
 
 # builds
 .next/
