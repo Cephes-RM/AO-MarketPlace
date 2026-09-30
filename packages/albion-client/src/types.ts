@@ -57,6 +57,27 @@ export interface AlbionPlayerProfile extends AlbionSearchPlayer {
   fameRatio?: number;
 }
 
+export interface AlbionGuild extends AlbionSearchEntity {
+  founderId?: string;
+  founderName?: string;
+  founded?: string;
+  allianceId?: string;
+  allianceName?: string;
+  allianceTag?: string;
+  memberCount?: number;
+  killFame?: number;
+  deathFame?: number;
+}
+
+export interface AlbionAlliance extends AlbionSearchEntity {
+  tag?: string;
+  founderId?: string;
+  founderName?: string;
+  founded?: string;
+  guilds: AlbionSearchEntity[];
+  playerCount?: number;
+}
+
 export interface AlbionEventPlayer extends AlbionSearchPlayer {
   guildId?: string;
   allianceId?: string;
@@ -144,11 +165,14 @@ export interface AlbionClient {
     getEvent(eventId: number): Promise<AlbionKillboardEvent>;
     /** Get a player's profile. */
     getPlayer(playerId: string): Promise<AlbionPlayerProfile>;
+    /** Get a guild's profile. */
+    getGuild(guildId: string): Promise<AlbionGuild>;
+    /** Get the members reported by the guild endpoint. */
+    getGuildMembers(guildId: string): Promise<AlbionPlayerProfile[]>;
+    /** Get an alliance and its guilds. */
+    getAlliance(allianceId: string): Promise<AlbionAlliance>;
     /** Get recent kill events where the player was the killer. */
-    getPlayerKills(
-      playerId: string,
-      pagination?: AlbionPagination,
-    ): Promise<AlbionKillboardEvent[]>;
+    getPlayerKills(playerId: string): Promise<AlbionKillboardEvent[]>;
     /** Get recent kill events where the player was the victim. */
     getPlayerDeaths(playerId: string): Promise<AlbionKillboardEvent[]>;
   };

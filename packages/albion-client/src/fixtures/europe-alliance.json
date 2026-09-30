@@ -1,0 +1,15 @@
+{
+  "AllianceId": "LR8GuAcsS9iGmvYgFVl0hQ",
+  "AllianceName": "Bozy Smallec",
+  "AllianceTag": "Whyy",
+  "FounderId": "_3pLOkOLRDWiRLC7g4ospw",
+  "FounderName": "NaczelnyBoomer",
+  "Founded": "2026-04-12T17:58:19.413214Z",
+  "Guilds": [
+    { "Id": "3u7SpJ5KRjCzRDNg5TybFw", "Name": "FearIess" },
+    { "Id": "7TSjsJztTre-LTGzPbrFOg", "Name": "N E X U S" },
+    { "Id": "0PwhfF-hRfSkyzz_A4TxfQ", "Name": "Ruthless Reign" },
+    { "Id": "Wnt8anqNRRSSWA96p8m4IA", "Name": "WhySpierdalasz" }
+  ],
+  "NumPlayers": 224
+}
