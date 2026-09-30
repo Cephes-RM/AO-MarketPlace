@@ -1,7 +1,9 @@
 import type {
+  AlbionAlliance,
   AlbionBatchResult,
   AlbionEquipment,
   AlbionEventPlayer,
+  AlbionGuild,
   AlbionItem,
   AlbionKillboardEvent,
   AlbionParseFailure,
@@ -41,6 +43,57 @@ export function parsePlayerProfile(payload: unknown): AlbionPlayerProfile {
     ...(killFame === undefined ? {} : { killFame }),
     ...(deathFame === undefined ? {} : { deathFame }),
     ...(fameRatio === undefined ? {} : { fameRatio }),
+  };
+}
+
+export function parseGuild(payload: unknown): AlbionGuild {
+  const record = requiredRecord(payload, "guild");
+  const entity = parseEntity(record, "guild");
+  const founderId = optionalString(record.FounderId, "guild FounderId");
+  const founderName = optionalString(record.FounderName, "guild FounderName");
+  const founded = optionalString(record.Founded, "guild Founded");
+  const allianceId = optionalString(record.AllianceId, "guild AllianceId");
+  const allianceName = optionalString(record.AllianceName, "guild AllianceName");
+  const allianceTag = optionalString(record.AllianceTag, "guild AllianceTag");
+  const memberCount = optionalNumber(record.MemberCount, "guild MemberCount");
+  const killFame = optionalNumber(record.killFame, "guild killFame");
+  const deathFame = optionalNumber(record.DeathFame, "guild DeathFame");
+
+  return {
+    ...entity,
+    ...(founderId === undefined ? {} : { founderId }),
+    ...(founderName === undefined ? {} : { founderName }),
+    ...(founded === undefined ? {} : { founded }),
+    ...(allianceId === undefined ? {} : { allianceId }),
+    ...(allianceName === undefined ? {} : { allianceName }),
+    ...(allianceTag === undefined ? {} : { allianceTag }),
+    ...(memberCount === undefined ? {} : { memberCount }),
+    ...(killFame === undefined ? {} : { killFame }),
+    ...(deathFame === undefined ? {} : { deathFame }),
+  };
+}
+
+export function parseGuildMembers(payload: unknown): AlbionPlayerProfile[] {
+  return requiredArray(payload, "guild members").map(parsePlayerProfile);
+}
+
+export function parseAlliance(payload: unknown): AlbionAlliance {
+  const record = requiredRecord(payload, "alliance");
+  const tag = optionalString(record.AllianceTag, "alliance AllianceTag");
+  const founderId = optionalString(record.FounderId, "alliance FounderId");
+  const founderName = optionalString(record.FounderName, "alliance FounderName");
+  const founded = optionalString(record.Founded, "alliance Founded");
+  const playerCount = optionalNumber(record.NumPlayers, "alliance NumPlayers");
+
+  return {
+    id: requiredString(record.AllianceId, "alliance AllianceId"),
+    name: requiredString(record.AllianceName, "alliance AllianceName"),
+    ...(tag === undefined ? {} : { tag }),
+    ...(founderId === undefined ? {} : { founderId }),
+    ...(founderName === undefined ? {} : { founderName }),
+    ...(founded === undefined ? {} : { founded }),
+    guilds: parseEntities(record.Guilds, "guild"),
+    ...(playerCount === undefined ? {} : { playerCount }),
   };
 }
 

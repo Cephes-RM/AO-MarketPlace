@@ -33,7 +33,10 @@ Then call the method needed by your service:
 ```ts
 const search = await albion.gameinfo.searchPlayers("PlayerName");
 const player = await albion.gameinfo.getPlayer("player-id");
-const kills = await albion.gameinfo.getPlayerKills("player-id", { limit: 10 });
+const guild = await albion.gameinfo.getGuild("guild-id");
+const members = await albion.gameinfo.getGuildMembers("guild-id");
+const alliance = await albion.gameinfo.getAlliance("alliance-id");
+const kills = await albion.gameinfo.getPlayerKills("player-id");
 const deaths = await albion.gameinfo.getPlayerDeaths("player-id");
 
 const events = await albion.gameinfo.getRecentEvents({ limit: 10 });
@@ -42,6 +45,8 @@ const event = await albion.gameinfo.getEvent(123456);
 
 Killboard events include the killer, victim, average item power, and equipment.
 Empty equipment slots can be `null` or missing.
+The Europe Gameinfo player-kills and player-deaths endpoints currently return
+up to 10 recent events and ignore pagination parameters.
 
 To fetch an item icon from Albion's render service:
 

@@ -1,4 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
+import allianceFixture from "./fixtures/europe-alliance.json";
+import guildFixture from "./fixtures/europe-guild.json";
+import membersFixture from "./fixtures/europe-guild-members.json";
 import { AlbionApiError, createAlbionClient, isAlbionRegion } from "./index.ts";
 import type { AlbionFetch, AlbionFetchResponse } from "./types.ts";
 
@@ -47,6 +50,98 @@ describe("isAlbionRegion", () => {
 });
 
 describe("createAlbionClient", () => {
+  // Real Europe Gameinfo payloads; members are from the supplied A-T-L-A-S response.
+  it("fetches and parses real Europe guild, member, and alliance payloads", async () => {
+    const base = "https://gameinfo-ams.albiononline.com/api/gameinfo/";
+    const guildId = guildFixture.Id;
+    const allianceId = allianceFixture.AllianceId;
+    const payloads = new Map<string, unknown>([
+      [`${base}guilds/${guildId}`, guildFixture],
+      [`${base}guilds/${guildId}/members`, membersFixture],
+      [`${base}alliances/${allianceId}`, allianceFixture],
+    ]);
+    const requests: string[] = [];
+    const fetch: AlbionFetch = async (url) => {
+      requests.push(url);
+      if (!payloads.has(url)) throw new Error(`Unexpected URL: ${url}`);
+      return jsonResponse(payloads.get(url));
+    };
+    const client = createAlbionClient({ region: "europe", fetch });
+
+    const guild = await client.gameinfo.getGuild(guildId);
+    expect(guild).toEqual({
+      id: guildId,
+      name: "A-T-L-A-S",
+      founderId: "KgXzr2H7RF2PcYKr1uJGQA",
+      founderName: "cephes",
+      founded: "2026-03-27T14:30:38.261277Z",
+      killFame: 941_588_278,
+      deathFame: 789_834_134,
+      memberCount: 36,
+    });
+    const members = await client.gameinfo.getGuildMembers(guildId);
+    expect(members).toHaveLength(guildFixture.MemberCount);
+    expect(guild.memberCount).toBe(members.length);
+    expect(members[0]).toEqual({
+      id: "cf25hviRTz6a374hcLwgdw",
+      name: "Zikohlk",
+      guildId,
+      guildName: "A-T-L-A-S",
+      killFame: 14_707_274,
+      deathFame: 8_318_447,
+      fameRatio: 1.77,
+    });
+    expect(members.every((member) => member.guildId === guildId)).toBe(true);
+    await expect(client.gameinfo.getAlliance(allianceId)).resolves.toEqual({
+      id: allianceId,
+      name: "Bozy Smallec",
+      tag: "Whyy",
+      founderId: "_3pLOkOLRDWiRLC7g4ospw",
+      founderName: "NaczelnyBoomer",
+      founded: "2026-04-12T17:58:19.413214Z",
+      guilds: [
+        { id: "3u7SpJ5KRjCzRDNg5TybFw", name: "FearIess" },
+        { id: "7TSjsJztTre-LTGzPbrFOg", name: "N E X U S" },
+        { id: "0PwhfF-hRfSkyzz_A4TxfQ", name: "Ruthless Reign" },
+        { id: "Wnt8anqNRRSSWA96p8m4IA", name: "WhySpierdalasz" },
+      ],
+      playerCount: 224,
+    });
+    expect(requests).toEqual([...payloads.keys()]);
+  });
+
+  it("rejects malformed guild, member, and alliance payloads", async () => {
+    const fetch: AlbionFetch = async (url) =>
+      jsonResponse(url.includes("/members") ? {} : { Id: "only-id" });
+    const client = createAlbionClient({ region: "europe", fetch });
+
+    await expect(client.gameinfo.getGuild("guild-id")).rejects.toThrow(
+      "Invalid Albion guild Name: expected a non-empty string.",
+    );
+    await expect(client.gameinfo.getGuildMembers("guild-id")).rejects.toThrow(
+      "Invalid Albion guild members: expected an array.",
+    );
+    await expect(client.gameinfo.getAlliance("alliance-id")).rejects.toThrow(
+      "Invalid Albion alliance AllianceId: expected a non-empty string.",
+    );
+  });
+
+  it("requests player kills and deaths without unsupported pagination", async () => {
+    const requests: string[] = [];
+    const fetch: AlbionFetch = async (url) => {
+      requests.push(url);
+      return jsonResponse([]);
+    };
+    const client = createAlbionClient({ region: "europe", fetch });
+
+    await expect(client.gameinfo.getPlayerKills(" player/id ")).resolves.toEqual([]);
+    await expect(client.gameinfo.getPlayerDeaths(" player/id ")).resolves.toEqual([]);
+    expect(requests).toEqual([
+      "https://gameinfo-ams.albiononline.com/api/gameinfo/players/player%2Fid/kills",
+      "https://gameinfo-ams.albiononline.com/api/gameinfo/players/player%2Fid/deaths",
+    ]);
+  });
+
   it("trims and encodes a player search before requesting and parsing it", async () => {
     const requests: string[] = [];
     const fetch: AlbionFetch = async (url) => {
@@ -379,6 +474,15 @@ describe("createAlbionClient", () => {
     );
     await expect(client.gameinfo.getPlayer(" ")).rejects.toThrow(
       "A player ID cannot be empty.",
+    );
+    await expect(client.gameinfo.getGuild(" ")).rejects.toThrow(
+      "A guild ID cannot be empty.",
+    );
+    await expect(client.gameinfo.getGuildMembers(" ")).rejects.toThrow(
+      "A guild ID cannot be empty.",
+    );
+    await expect(client.gameinfo.getAlliance(" ")).rejects.toThrow(
+      "An alliance ID cannot be empty.",
     );
     await expect(
       client.gameinfo.getRecentEvents({ limit: 52 }),

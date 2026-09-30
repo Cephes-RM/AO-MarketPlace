@@ -1,5 +1,8 @@
 import { toAlbionApiError } from "./errors.ts";
 import {
+  parseAlliance,
+  parseGuild,
+  parseGuildMembers,
   parseKillboardEvent,
   parseKillboardEvents,
   parseKillboardEventsTolerant,
@@ -89,24 +92,35 @@ export function createAlbionClient(options: AlbionClientOptions): AlbionClient {
 
       async getPlayer(playerId: string): Promise<AlbionPlayerProfile> {
         return parsePlayerProfile(
-          await getJson(`players/${encodePlayerId(playerId)}`),
+          await getJson(`players/${encodeId(playerId, "player")}`),
         );
       },
 
-      async getPlayerKills(
-        playerId: string,
-        pagination?: AlbionPagination,
-      ): Promise<AlbionKillboardEvent[]> {
+      async getGuild(guildId: string) {
+        return parseGuild(await getJson(`guilds/${encodeId(guildId, "guild")}`));
+      },
+
+      async getGuildMembers(guildId: string) {
+        return parseGuildMembers(
+          await getJson(`guilds/${encodeId(guildId, "guild")}/members`),
+        );
+      },
+
+      async getAlliance(allianceId: string) {
+        return parseAlliance(
+          await getJson(`alliances/${encodeId(allianceId, "alliance")}`),
+        );
+      },
+
+      async getPlayerKills(playerId: string): Promise<AlbionKillboardEvent[]> {
         return parseKillboardEvents(
-          await getJson(
-            withPagination(`players/${encodePlayerId(playerId)}/kills`, pagination),
-          ),
+          await getJson(`players/${encodeId(playerId, "player")}/kills`),
         );
       },
 
       async getPlayerDeaths(playerId: string): Promise<AlbionKillboardEvent[]> {
         return parseKillboardEvents(
-          await getJson(`players/${encodePlayerId(playerId)}/deaths`),
+          await getJson(`players/${encodeId(playerId, "player")}/deaths`),
         );
       },
     },
@@ -247,11 +261,13 @@ function normaliseBaseUrl(url: string): string {
   return url.endsWith("/") ? url : `${url}/`;
 }
 
-function encodePlayerId(playerId: string): string {
-  const id = playerId.trim();
+function encodeId(value: string, kind: string): string {
+  const id = value.trim();
 
   if (!id) {
-    throw new TypeError("A player ID cannot be empty.");
+    throw new TypeError(
+      `${kind === "alliance" ? "An" : "A"} ${kind} ID cannot be empty.`,
+    );
   }
 
   return encodeURIComponent(id);
