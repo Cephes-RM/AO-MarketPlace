@@ -1,8 +1,10 @@
 import { getPlayerById } from "@albion/db";
 import Link from "next/link";
 import {
+  CombatEventCard,
   EmptyState,
   ErrorState,
+  formatFame,
   PageContainer,
   ProfileHeading,
   SectionHeading,
@@ -28,13 +30,38 @@ export default async function PlayerPage({
         <ProfileHeading eyebrow="PLAYER PROFILE" title={player.name} />
         <div className="stats-grid stats-grid--profile">
           <StatCard label="Current guild" value={currentMembership?.guild.name ?? "Independent"} />
-          <StatCard label="Fame" value={BigInt(player.fame).toLocaleString("en")} />
+          <StatCard label="Fame" value={formatFame(player.fame)} />
           <StatCard label="Rating" value={player.rating.toLocaleString("en")} />
-          <StatCard label="Kill fame" value={BigInt(player.killFame).toLocaleString("en")} />
-          <StatCard label="Death fame" value={BigInt(player.deathFame).toLocaleString("en")} />
+          <StatCard label="Kill fame" value={formatFame(player.killFame)} />
+          <StatCard label="Death fame" value={formatFame(player.deathFame)} />
           <StatCard label="Stars" value={player.stars} />
         </div>
-        <section className="directory-section">
+        <nav className="profile-nav" aria-label="Player sections">
+          <a href="#recent-kills">Recent kills</a>
+          <a href="#recent-deaths">Recent deaths</a>
+          <a href="#guild-history">Guild history</a>
+        </nav>
+        <section className="directory-section" id="recent-kills">
+          <SectionHeading title="Recent kills" description="The latest 20 recorded kills, newest first. Open a fight to see both players’ equipment." />
+          {player.kills.length ? (
+            <div className="combat-list">
+              {player.kills.map((event) => <CombatEventCard key={event.id} event={event} kind="kill" />)}
+            </div>
+          ) : (
+            <EmptyState title="No recent kills">No kills have been recorded for this player yet.</EmptyState>
+          )}
+        </section>
+        <section className="directory-section" id="recent-deaths">
+          <SectionHeading title="Recent deaths" description="The latest 20 recorded deaths, newest first. Equipment shows what was worn during each fight." />
+          {player.deaths.length ? (
+            <div className="combat-list">
+              {player.deaths.map((event) => <CombatEventCard key={event.id} event={event} kind="death" />)}
+            </div>
+          ) : (
+            <EmptyState title="No recent deaths">No deaths have been recorded for this player yet.</EmptyState>
+          )}
+        </section>
+        <section className="directory-section" id="guild-history">
           <SectionHeading title="Guild history" description="Recorded guild memberships for this player." />
           {player.guildMemberships.length === 0 ? (
             <EmptyState title="No guild history">This player has no recorded guild memberships.</EmptyState>

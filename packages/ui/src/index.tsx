@@ -2,6 +2,9 @@ import type { ReactNode } from "react";
 
 export const VERSION = "0.0.0";
 
+export { CombatEventCard, EquipmentLoadout, formatFame, formatItemType } from "./combat";
+export type { CombatEventSummary } from "./combat";
+
 export function SiteHeader() {
   return (
     <header className="site-header">
