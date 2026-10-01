@@ -13,7 +13,7 @@ export async function getPlayerById(playerId: string) {
       where: { id: playerId },
       include: {
         guildMemberships: {
-          include: { guild: true },
+          include: { guild: { include: { alliance: true } } },
           orderBy: { joinedAt: "asc" },
         },
       },
@@ -41,5 +41,7 @@ export {
   type SearchPlayer,
   type SearchResults,
 } from "./search";
+
+export { getAllianceById, getGuildById, getLandingPageData } from "./marketplace";
 
 export * from "@prisma/client";

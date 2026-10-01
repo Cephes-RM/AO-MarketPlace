@@ -3,13 +3,17 @@
   "private": true,
   "version": "0.0.0",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.tsx"
+  },
+  "peerDependencies": {
+    "react": ">=19"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
     "@albion/typescript-config": "workspace:*",
+    "@types/react": "^19.2.17",
     "typescript": "^5.8.0"
   }
 }
