@@ -1,9 +1,13 @@
 import type { ReactNode } from "react";
+import { SiteSearch } from "./site-search";
 
 export const VERSION = "0.0.0";
 
 export { CombatEventCard, EquipmentLoadout, formatFame, formatItemType } from "./combat";
 export type { CombatEventSummary } from "./combat";
+export { fameRatio } from "./format";
+export type { FameValue } from "./format";
+export { SiteSearch } from "./site-search";
 
 export function SiteHeader() {
   return (
@@ -18,6 +22,7 @@ export function SiteHeader() {
           <a href="/#guilds">Guilds</a>
           <a href="/#about">About</a>
         </nav>
+        <SiteSearch />
       </div>
     </header>
   );
@@ -30,8 +35,8 @@ export function SiteFooter() {
         <a className="brand brand--footer" href="/">Albion Market</a>
         <p>
           An independent community project. Not affiliated with Sandbox
-          Interactive GmbH. Game information is presented for community
-          reference.
+          Interactive GmbH. Game data comes from the public Albion Online API;
+          records may be incomplete or out of date.
         </p>
       </div>
     </footer>

@@ -98,7 +98,7 @@ export default async function Home() {
       <section className="directory-section" id="guilds">
         <SectionHeading
           title="Guilds making moves"
-          description="Guilds with the most recorded membership history."
+          description="Guilds with the most current members in the directory."
         />
         {data?.guilds.length ? (
           <div className="directory-list">
@@ -109,7 +109,7 @@ export default async function Home() {
                   <strong>{guild.name}</strong>
                   <span>{guild.alliance?.name ?? "Independent guild"}</span>
                 </span>
-                <span className="directory-row__score">{numberFormat.format(guild._count.memberships)} <small>member records</small></span>
+                <span className="directory-row__score">{numberFormat.format(guild._count.memberships)} <small>current members</small></span>
                 <span className="directory-row__arrow" aria-hidden="true">↗</span>
               </Link>
             ))}

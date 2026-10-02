@@ -1,3 +1,7 @@
+import { formatFame, formatItemType } from "./format";
+
+export { formatFame, formatItemType } from "./format";
+
 type EquipmentItem = { id: string; quality?: number; count?: number };
 
 const EQUIPMENT_SLOTS = [
@@ -28,23 +32,6 @@ export interface CombatEventSummary {
   victimLoadout: Equipment;
   killerItemPower: number | null;
   victimItemPower: number | null;
-}
-
-export function formatFame(value: string | bigint | number): string {
-  try {
-    if (typeof value === "number" && !Number.isSafeInteger(value)) return "Unavailable";
-    return BigInt(value).toLocaleString("en");
-  } catch {
-    return "Unavailable";
-  }
-}
-
-/** Make an item identifier readable while preserving its tier and enchantment. */
-export function formatItemType(id: string): string {
-  const match = /^T(\d+)_(.+?)(?:@(\d+))?$/.exec(id);
-  if (!match) return id.replaceAll("_", " ");
-  const [, tier, item, enchantment] = match;
-  return `T${tier}${enchantment ? `.${enchantment}` : ""} · ${item.replaceAll("_", " ")}`;
 }
 
 const QUALITY_NAMES: Record<number, string> = {

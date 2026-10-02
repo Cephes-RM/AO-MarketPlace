@@ -1,10 +1,12 @@
 import { getPlayerById } from "@albion/db";
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import {
   CombatEventCard,
   EmptyState,
   ErrorState,
   formatFame,
+  fameRatio,
   PageContainer,
   ProfileHeading,
   SectionHeading,
@@ -34,6 +36,7 @@ export default async function PlayerPage({
           <StatCard label="Rating" value={player.rating.toLocaleString("en")} />
           <StatCard label="Kill fame" value={formatFame(player.killFame)} />
           <StatCard label="Death fame" value={formatFame(player.deathFame)} />
+          <StatCard label="Kill / death fame" value={fameRatio(player.killFame, player.deathFame)} />
           <StatCard label="Stars" value={player.stars} />
         </div>
         <nav className="profile-nav" aria-label="Player sections">
@@ -84,7 +87,7 @@ export default async function PlayerPage({
     const message = error instanceof Error ? error.message : "";
 
     if (message === "Player not found") {
-      return <PageContainer><ErrorState title="Player not found">No player profile matches this ID.</ErrorState></PageContainer>;
+      notFound();
     }
 
     if (message === "Invalid player ID") {

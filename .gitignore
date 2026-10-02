@@ -1,5 +1,7 @@
 # dependencies
 node_modules/
+.pnpm-store/
+.worker-state/
 
 # zabala dial cerberos
 package-lock.json

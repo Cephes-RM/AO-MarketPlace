@@ -60,7 +60,7 @@ export default async function AlliancePage({ params }: Props) {
       />
       <div className="stats-grid stats-grid--profile">
         <StatCard label="Guilds" value={alliance.guilds.length} />
-        <StatCard label="Recorded guild memberships" value={memberCount.toLocaleString("en")} />
+        <StatCard label="Current guild members" value={memberCount.toLocaleString("en")} />
         <StatCard label="Alliance ID" value={<span className="id-value">{alliance.id}</span>} />
       </div>
       <section className="directory-section">
