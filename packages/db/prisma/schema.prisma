@@ -11,6 +11,10 @@ datasource db {
 model Alliance {
   id        String   @id
   name      String   
+  /// Cache written only by the refresh job. Do not read until populated.
+  rating    Int?
+  /// Cache written only by the refresh job. Do not read until populated.
+  stars     Int?
   guilds    Guild[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -22,6 +26,10 @@ model Guild {
   id          String            @id
   name        String            
   allianceId  String?
+  /// Cache written only by the refresh job. Do not read until populated.
+  rating      Int?
+  /// Cache written only by the refresh job. Do not read until populated.
+  stars       Int?
   alliance    Alliance?         @relation(fields: [allianceId], references: [id])
   memberships GuildMembership[]
   createdAt   DateTime          @default(now())
