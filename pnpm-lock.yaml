@@ -76,7 +76,27 @@ importers:
         specifier: ^5
         version: 5.9.3
 
-  apps/worker: {}
+  apps/worker:
+    dependencies:
+      '@albion/albion-client':
+        specifier: workspace:*
+        version: link:../../packages/albion-client
+      '@albion/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      tsx:
+        specifier: ^4.19.0
+        version: 4.23.0
+    devDependencies:
+      '@albion/typescript-config':
+        specifier: workspace:*
+        version: link:../../packages/typescript-config
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.20.1
+      typescript:
+        specifier: ^5.8.0
+        version: 5.9.3
 
   packages/albion-client:
     devDependencies:

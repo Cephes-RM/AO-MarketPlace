@@ -66,7 +66,7 @@ This opens a local web UI (defaults to `http://localhost:5555`) backed by the sa
 | Package                     | Purpose                                        | Owner              |
 | --------------------------- | ---------------------------------------------- | ------------------ |
 | `apps/web`                  | Next.js app (the website)                      | —                  |
-| `apps/worker`               | Ingestion worker (placeholder, built in Epic 4)| Marwane            |
+| `apps/worker`               | Scheduled ingestion worker ([local setup](apps/worker/README.md)) | Marwane |
 | `packages/db`               | Prisma schema + client singleton               | Salmane and Ismail |
 | `packages/albion-client`    | Albion API SDK (stub)                          | Marwane            |
 | `packages/rating-engine`    | Pure computation, no I/O (stub)                | Yassir and Marwane |

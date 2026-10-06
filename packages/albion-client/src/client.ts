@@ -79,15 +79,16 @@ export function createAlbionClient(options: AlbionClientOptions): AlbionClient {
 
       async getRecentEventsTolerant(
         pagination?: AlbionPagination,
+        signal?: AbortSignal,
       ): Promise<AlbionBatchResult<AlbionKillboardEvent>> {
         return parseKillboardEventsTolerant(
-          await getJson(withPagination("events", pagination, { maxLimit: 51 })),
+          await getJson(withPagination("events", pagination, { maxLimit: 51 }), signal),
         );
       },
 
-      async getEvent(eventId: number): Promise<AlbionKillboardEvent> {
+      async getEvent(eventId: number, signal?: AbortSignal): Promise<AlbionKillboardEvent> {
         assertPositiveInteger(eventId, "eventId");
-        return parseKillboardEvent(await getJson(`events/${eventId}`));
+        return parseKillboardEvent(await getJson(`events/${eventId}`, signal));
       },
 
       async getPlayer(playerId: string): Promise<AlbionPlayerProfile> {
@@ -144,22 +145,23 @@ export function createAlbionClient(options: AlbionClientOptions): AlbionClient {
     },
   };
 
-  async function getJson(path: string): Promise<unknown> {
+  async function getJson(path: string, signal?: AbortSignal): Promise<unknown> {
     const url = `${baseUrl}${path}`;
     return requestWithRetry(
       url,
-      { headers: { accept: "application/json" } },
+      { headers: { accept: "application/json" }, signal },
       (response) => response.json(),
     );
   }
 
   async function requestWithRetry<T>(
     url: string,
-    init: { headers: Record<string, string> },
+    init: { headers: Record<string, string>; signal?: AbortSignal },
     read: (response: AlbionFetchResponse) => Promise<T>,
     service = "Albion Gameinfo API",
   ): Promise<T> {
     for (let attempt = 0; ; attempt += 1) {
+      init.signal?.throwIfAborted();
       try {
         const result = await requestWithTimeout(url, init, async (response) =>
           response.ok
@@ -178,8 +180,9 @@ export function createAlbionClient(options: AlbionClientOptions): AlbionClient {
           throw toAlbionApiError(result.response, url, service);
         }
 
-        await wait(retryDelay(attempt, retry.delaysMs, result.response));
+        await wait(retryDelay(attempt, retry.delaysMs, result.response), init.signal);
       } catch (error) {
+        init.signal?.throwIfAborted();
         if (
           !isRetryableError(error) ||
           attempt === retry.delaysMs.length
@@ -187,34 +190,41 @@ export function createAlbionClient(options: AlbionClientOptions): AlbionClient {
           throw error;
         }
 
-        await wait(retryDelay(attempt, retry.delaysMs));
+        await wait(retryDelay(attempt, retry.delaysMs), init.signal);
       }
     }
   }
 
   async function requestWithTimeout<T>(
     url: string,
-    init: { headers: Record<string, string> },
+    init: { headers: Record<string, string>; signal?: AbortSignal },
     read: (response: AlbionFetchResponse) => Promise<T>,
   ): Promise<T> {
     const controller = new AbortController();
+    const signal = init.signal
+      ? AbortSignal.any([init.signal, controller.signal])
+      : controller.signal;
     let timeout: ReturnType<typeof setTimeout> | undefined;
+    let onAbort = () => {};
     const timeoutError = Object.assign(
       new Error("Albion API request timed out."),
       { name: "TimeoutError" },
     );
 
     try {
+      signal.throwIfAborted();
       return await Promise.race([
-        request(url, { ...init, signal: controller.signal }).then(read),
         new Promise<never>((_, reject) => {
+          onAbort = () => reject(signal.reason);
+          signal.addEventListener("abort", onAbort, { once: true });
           timeout = setTimeout(() => {
-            controller.abort();
-            reject(timeoutError);
+            controller.abort(timeoutError);
           }, retry.timeoutMs);
         }),
+        request(url, { ...init, signal }).then(read),
       ]);
     } finally {
+      signal.removeEventListener("abort", onAbort);
       if (timeout !== undefined) {
         clearTimeout(timeout);
       }
@@ -353,6 +363,17 @@ function retryAfterDelay(value: string | null | undefined): number | undefined {
   return Number.isNaN(retryAt) ? undefined : Math.max(0, retryAt - Date.now());
 }
 
-function wait(delayMs: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, delayMs));
+function wait(delayMs: number, signal?: AbortSignal): Promise<void> {
+  signal?.throwIfAborted();
+  return new Promise((resolve, reject) => {
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(signal?.reason);
+    };
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, delayMs);
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
 }

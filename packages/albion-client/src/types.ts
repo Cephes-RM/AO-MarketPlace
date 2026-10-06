@@ -160,9 +160,10 @@ export interface AlbionClient {
     /** Get recent events while retaining valid records if individual records are malformed. */
     getRecentEventsTolerant(
       pagination?: AlbionPagination,
+      signal?: AbortSignal,
     ): Promise<AlbionBatchResult<AlbionKillboardEvent>>;
     /** Get one kill event by its numeric event id. */
-    getEvent(eventId: number): Promise<AlbionKillboardEvent>;
+    getEvent(eventId: number, signal?: AbortSignal): Promise<AlbionKillboardEvent>;
     /** Get a player's profile. */
     getPlayer(playerId: string): Promise<AlbionPlayerProfile>;
     /** Get a guild's profile. */

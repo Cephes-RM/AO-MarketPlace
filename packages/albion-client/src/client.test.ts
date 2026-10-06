@@ -492,4 +492,51 @@ describe("createAlbionClient", () => {
     ).rejects.toThrow("offset must be a non-negative integer.");
     expect(requestCount).toBe(0);
   });
+
+  it.each(["feed", "detail"] as const)("cancels an active %s request without retrying", async (method) => {
+    const controller = new AbortController();
+    let requestSignal: AbortSignal | undefined;
+    const fetch = vi.fn(async (_url: string, init?: { signal?: AbortSignal }) => {
+      requestSignal = init?.signal;
+      return new Promise<AlbionFetchResponse>(() => {});
+    });
+    const api = createAlbionClient({ region: "europe", fetch }).gameinfo;
+    const pending = method === "feed"
+      ? api.getRecentEventsTolerant({ limit: 51 }, controller.signal)
+      : api.getEvent(42, controller.signal);
+    const rejected = expect(pending).rejects.toMatchObject({ name: "AbortError" });
+    controller.abort();
+    await rejected;
+    expect(requestSignal?.aborted).toBe(true);
+    expect(fetch).toHaveBeenCalledOnce();
+  });
+
+  it("does not request an event with an already-aborted signal", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const fetch = vi.fn(async () => jsonResponse(eventPayload()));
+    const api = createAlbionClient({ region: "europe", fetch }).gameinfo;
+    await expect(api.getEvent(42, controller.signal)).rejects.toMatchObject({ name: "AbortError" });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("cancels Retry-After backoff and clears its timer", async () => {
+    vi.useFakeTimers();
+    try {
+      const controller = new AbortController();
+      const fetch = vi.fn(async () => failedResponse(429, "30"));
+      const api = createAlbionClient({ region: "europe", fetch }).gameinfo;
+      const pending = api.getEvent(42, controller.signal);
+      const rejected = expect(pending).rejects.toMatchObject({ name: "AbortError" });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(vi.getTimerCount()).toBe(1);
+      controller.abort();
+      await rejected;
+      expect(vi.getTimerCount()).toBe(0);
+      await vi.advanceTimersByTimeAsync(120_000);
+      expect(fetch).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

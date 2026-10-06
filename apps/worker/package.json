@@ -1,5 +1,20 @@
 {
   "name": "worker",
   "private": true,
-  "version": "0.0.0"
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@albion/albion-client": "workspace:*",
+    "@albion/db": "workspace:*",
+    "tsx": "^4.19.0"
+  },
+  "devDependencies": {
+    "@albion/typescript-config": "workspace:*",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.8.0"
+  }
 }
