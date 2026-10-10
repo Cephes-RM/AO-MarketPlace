@@ -164,3 +164,50 @@ a:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
 .closing-banner > p { margin-top: 16px; }
 
 }
+
+.profile-nav { display: flex; flex-wrap: wrap; gap: 10px; margin: -35px 0 42px; }
+
+.profile-nav a { padding: 10px 15px; border: 1px solid var(--line); color: var(--muted); font-size: 12px; }
+
+.profile-nav a:hover { border-color: var(--accent); color: var(--accent); }
+
+.directory-section[id] { scroll-margin-top: 24px; }
+
+.combat-list { display: grid; gap: 18px; }
+
+.combat-card { min-width: 0; border: 1px solid var(--line); background: var(--surface); }
+
+.combat-card__heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; padding: 20px 24px 0; }
+
+.combat-card__heading time { color: var(--muted); font-size: 11px; }
+
+.combat-badge { padding: 5px 9px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; }
+
+.combat-badge--kill { color: #b9d6a2; background: rgba(143,183,110,.12); }
+
+.combat-badge--death { color: #e2aaa0; background: rgba(210,135,105,.12); }
+
+.combat-matchup { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; margin: 19px 24px; }
+
+.combat-matchup a { overflow-wrap: anywhere; font-size: 18px; font-weight: 600; }
+
+.combat-matchup a:hover { color: var(--accent); }
+
+.combat-matchup > span { color: var(--muted); font-size: 12px; }
+
+.combat-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 18px; margin: 0; padding: 0 24px 23px; }
+
+.combat-facts dt { margin-bottom: 7px; color: var(--muted); font-size: 10px; }
+
+.combat-facts dd { margin: 0; overflow-wrap: anywhere; font-size: 13px; font-variant-numeric: tabular-nums; }
+
+@media (max-width: 700px) {
+.combat-card__heading { padding: 17px 16px 0; }
+
+.combat-matchup { margin: 17px 16px; }
+
+.combat-matchup a { font-size: 16px; }
+
+.combat-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 0 16px 19px; }
+
+}
