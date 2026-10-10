@@ -211,3 +211,46 @@ a:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
 .combat-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 0 16px 19px; }
 
 }
+
+.combat-equipment { border-top: 1px solid var(--line); }
+
+.combat-equipment > summary { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 17px 24px; color: var(--accent); font-size: 12px; cursor: pointer; list-style: none; }
+
+.combat-equipment > summary::-webkit-details-marker { display: none; }
+
+.combat-equipment > summary > span { font-size: 20px; transition: transform .15s; }
+
+.combat-equipment[open] > summary > span { transform: rotate(45deg); }
+
+.combat-equipment__players { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px; padding: 0 24px 24px; }
+
+.combat-equipment__players h3 { margin: 8px 0 15px; overflow-wrap: anywhere; font-size: 14px; font-weight: 600; }
+
+.combat-equipment__players h3 > span { display: block; margin-top: 6px; color: var(--muted); font-size: 11px; font-weight: 400; }
+
+.equipment-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 0; }
+
+.equipment-slot { min-width: 0; padding: 13px; border: 1px solid var(--line); background: rgba(0,0,0,.09); }
+
+.equipment-slot dt { margin-bottom: 8px; color: var(--accent); font-size: 10px; }
+
+.equipment-slot dd { margin: 0; }
+
+.equipment-slot__item { display: block; overflow-wrap: anywhere; font-size: 11px; line-height: 1.5; }
+
+.equipment-slot__meta { display: block; margin-top: 5px; color: var(--muted); font-size: 10px; line-height: 1.5; }
+
+.equipment-slot--empty { border-style: dashed; }
+
+.equipment-slot--empty dt { color: var(--muted); }
+
+.equipment-unavailable { margin: 0; padding: 18px; border: 1px dashed var(--line); color: var(--muted); font-size: 12px; line-height: 1.6; }
+
+summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+
+@media (max-width: 700px) {
+.combat-equipment > summary { padding: 16px; }
+
+.combat-equipment__players { grid-template-columns: 1fr; gap: 18px; padding: 0 16px 20px; }
+
+}
