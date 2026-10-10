@@ -1,5 +1,22 @@
 import { prisma } from "./client";
 
+export async function getAllianceById(allianceId: string) {
+  if (!allianceId.trim()) throw new Error("Invalid alliance ID");
+
+  const alliance = await prisma.alliance.findUnique({
+    where: { id: allianceId },
+    include: {
+      guilds: {
+        orderBy: { name: "asc" },
+        include: { _count: { select: { memberships: { where: { leftAt: null } } } } },
+      },
+    },
+  });
+
+  if (!alliance) throw new Error("Alliance not found");
+  return alliance;
+}
+
 export async function getGuildById(guildId: string) {
   if (!guildId.trim()) throw new Error("Invalid guild ID");
 
