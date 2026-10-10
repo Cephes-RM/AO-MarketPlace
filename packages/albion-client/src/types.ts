@@ -24,6 +24,15 @@ export interface AlbionClientOptions {
   fetch?: AlbionFetch;
   /** Uses the default timeout and retry delays when omitted. */
   retry?: AlbionRetryOptions;
+  /** Observes retries without exposing request URLs or credentials. */
+  onRetry?: (event: AlbionRetryEvent) => void;
+}
+
+export interface AlbionRetryEvent {
+  attempt: number;
+  delayMs: number;
+  cause: "http" | "network" | "timeout";
+  status?: number;
 }
 
 export interface AlbionRetryOptions {

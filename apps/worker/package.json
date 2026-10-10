@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "start": "tsx src/index.ts",
+    "monitor:demo": "tsx src/monitor-demo.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

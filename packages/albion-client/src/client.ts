@@ -180,7 +180,9 @@ export function createAlbionClient(options: AlbionClientOptions): AlbionClient {
           throw toAlbionApiError(result.response, url, service);
         }
 
-        await wait(retryDelay(attempt, retry.delaysMs, result.response), init.signal);
+        const delayMs = retryDelay(attempt, retry.delaysMs, result.response);
+        options.onRetry?.({ attempt: attempt + 1, delayMs, cause: "http", status: result.response.status });
+        await wait(delayMs, init.signal);
       } catch (error) {
         init.signal?.throwIfAborted();
         if (
@@ -190,7 +192,9 @@ export function createAlbionClient(options: AlbionClientOptions): AlbionClient {
           throw error;
         }
 
-        await wait(retryDelay(attempt, retry.delaysMs), init.signal);
+        const delayMs = retryDelay(attempt, retry.delaysMs);
+        options.onRetry?.({ attempt: attempt + 1, delayMs, cause: isTimeout(error) ? "timeout" : "network" });
+        await wait(delayMs, init.signal);
       }
     }
   }
