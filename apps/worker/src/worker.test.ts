@@ -484,39 +484,73 @@ describe("worker", () => {
     expect(offsets).toEqual([0, 51]);
   });
 
-  it("bounds endlessly advancing full pages by default", async () => {
-    let requests = 0;
+  it("finishes at Albion's maximum offset and saves the boundary for the next cycle", async () => {
+    const offsets: number[] = [];
     const log = logger();
+    const onEvents = vi.fn(async (_events: { id: number }[]) => {});
     const worker = testWorker({
       fetch: async (url) => {
-        requests++;
         const offset = Number(new URL(url).searchParams.get("offset"));
-        return response(200, Array.from({ length: 51 }, (_, i) => event(offset + i + 1)));
+        offsets.push(offset);
+        return offset > 1000 ? response(400, null)
+          : response(200, Array.from({ length: 51 }, (_, i) => event(2000 - offset - i)));
       },
-      logger: log,
+      onEvents, logger: log,
     });
-    await expect(worker.runCycle()).resolves.toMatchObject({ newEvents: 5100 });
-    expect(requests).toBe(100);
-    expect(log.warn).toHaveBeenCalledWith("Stopped at WORKER_MAX_PAGES=100; older events may be missed.");
+    await expect(worker.runCycle()).resolves.toMatchObject({ newEvents: 1051 });
+    expect(offsets).toEqual([...Array.from({ length: 20 }, (_, i) => i * 51), 1000]);
+    expect(onEvents.mock.calls[0]?.[0].map(({ id }) => id))
+      .toEqual(Array.from({ length: 1051 }, (_, i) => 2000 - i));
+    await expect(worker.runCycle()).resolves.toMatchObject({ newEvents: 0 });
+    expect(offsets.at(-1)).toBe(0);
+    expect(offsets).toHaveLength(22);
+    expect(onEvents).toHaveBeenCalledOnce();
+    expect(log.error).not.toHaveBeenCalled();
+    expect(log.warn).not.toHaveBeenCalled();
   });
 
-  it("bounds scan state even with a large page cap and deduplicates the repeated window", async () => {
-    let requests = 0;
+  it("respects Albion's offset limit even with a large page cap", async () => {
+    const offsets: number[] = [];
     const log = logger();
     const onEvents = vi.fn(async () => {});
     const worker = testWorker({
       fetch: async (url) => {
-        requests++;
         const offset = Number(new URL(url).searchParams.get("offset"));
+        offsets.push(offset);
         return response(200, Array.from({ length: 51 }, (_, i) => event(offset + i + 1)));
       },
       onEvents, maxPages: 500, logger: log,
     });
-    await expect(worker.runCycle()).resolves.toMatchObject({ newEvents: 9996 });
+    await expect(worker.runCycle()).resolves.toMatchObject({ newEvents: 1051 });
     await expect(worker.runCycle()).resolves.toMatchObject({ newEvents: 0 });
-    expect(requests).toBe(392);
+    expect(offsets).toHaveLength(22);
+    expect(Math.max(...offsets)).toBe(1000);
     expect(onEvents).toHaveBeenCalledOnce();
-    expect(log.warn).toHaveBeenCalledWith("Scan state limit reached; older events may be missed.");
+    expect(log.warn).not.toHaveBeenCalled();
+  });
+
+  it("keeps the boundary unchanged when the final allowed page fails", async () => {
+    let cycle = 0;
+    const offsets: number[] = [];
+    const log = logger();
+    const worker = testWorker({
+      fetch: async (url) => {
+        const offset = Number(new URL(url).searchParams.get("offset"));
+        offsets.push(offset);
+        if (offset === 0) cycle++;
+        if (offset === 1000 && cycle === 1) return response(400, null);
+        return response(200, Array.from({ length: 51 }, (_, i) => event(2000 - offset - i)));
+      },
+      logger: log,
+    });
+
+    await expect(worker.runCycle()).resolves.toMatchObject({ newEvents: 1020 });
+    await expect(worker.runCycle()).resolves.toMatchObject({ newEvents: 31 });
+    await expect(worker.runCycle()).resolves.toMatchObject({ newEvents: 0 });
+    expect(offsets).toHaveLength(43);
+    expect(offsets.filter((offset) => offset === 1000)).toHaveLength(2);
+    expect(offsets.at(-1)).toBe(0);
+    expect(log.error).toHaveBeenCalledOnce();
   });
 
   it("bounds the recovery queue and reports IDs that cannot be retained", async () => {
@@ -534,7 +568,7 @@ describe("worker", () => {
       logger: log,
     });
     await worker.runCycle();
-    expect(log.warn.mock.calls.filter(([message]) => message === "Recovery queue full; event cannot be retained.")).toHaveLength(20);
+    expect(log.warn.mock.calls.filter(([message]) => message === "Recovery queue full; event cannot be retained.")).toHaveLength(71);
     await worker.runCycle();
     expect(attempts).toEqual([1, 2, 3, 4, 5]);
   });

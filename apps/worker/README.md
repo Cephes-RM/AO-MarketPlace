@@ -20,7 +20,13 @@ boundary, or omitted by a response or moving offset pagination, may be missed.
 Known failed IDs are still retried separately; they do not depend on scanning
 older pages. This is incremental polling, not a guarantee of complete history.
 
-`WORKER_MAX_PAGES` defaults to 100. `WORKER_CYCLE_TIMEOUT_MS` defaults to 120000
+`WORKER_MAX_PAGES` defaults to 100, but the events endpoint accepts offsets
+only up to 1000. Scans fetch the final page at offset 1000 and stop there, even
+when it is full. This completes the
+accessible feed window, not all event history. The final page overlaps the
+previous page; event IDs are deduplicated before handling.
+
+`WORKER_CYCLE_TIMEOUT_MS` defaults to 120000
 and bounds API work, including retries and response bodies. Half of that budget
 is reserved for scanning and the remainder allows recovery to progress even
 when scanning times out. Page, time, and state limits produce warnings about

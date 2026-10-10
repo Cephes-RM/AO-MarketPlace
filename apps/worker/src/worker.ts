@@ -6,6 +6,7 @@ import type {
 } from "@albion/albion-client";
 
 const PAGE_SIZE = 51;
+const MAX_FEED_OFFSET = 1000;
 const MAX_STATE_IDS = 10_000;
 const MAX_FAILED_IDS = 1_000;
 const RECOVERIES_PER_CYCLE = 5;
@@ -79,11 +80,12 @@ export function createWorker(options: WorkerOptions) {
         pageWasFull = false;
         break;
       }
+      const offset = Math.min(page * PAGE_SIZE, MAX_FEED_OFFSET);
       let result: AlbionBatchResult<AlbionKillboardEvent>;
       try {
         result = await options.client.getRecentEventsTolerant({
           limit: PAGE_SIZE,
-          offset: page * PAGE_SIZE,
+          offset,
         }, scanSignal);
         if (result.records.length + result.failures.length > PAGE_SIZE) {
           throw new Error("Albion returned more events than the requested page size.");
@@ -152,6 +154,11 @@ export function createWorker(options: WorkerOptions) {
       }
       if (pageIds.size > 0 && !madeProgress) {
         options.logger.warn("Pagination made no progress; older events may be unavailable.");
+        pageWasFull = false;
+        break;
+      }
+      if (offset === MAX_FEED_OFFSET) {
+        scanCompleted = true;
         pageWasFull = false;
         break;
       }
