@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { SiteSearch } from "./site-search";
 
 export const VERSION = "0.0.0";
 
@@ -6,6 +7,41 @@ export { CombatEventCard, EquipmentLoadout, formatFame, formatItemType } from ".
 export type { CombatEventSummary } from "./combat";
 export { fameRatio } from "./format";
 export type { FameValue } from "./format";
+export { SiteSearch } from "./site-search";
+
+export function SiteHeader() {
+  return (
+    <header className="site-header">
+      <div className="site-header__inner">
+        <a className="brand" href="/" aria-label="Albion Market home">
+          <span className="brand__mark" aria-hidden="true">A</span>
+          <span>Albion Market</span>
+        </a>
+        <nav className="site-nav" aria-label="Main navigation">
+          <a href="/#players">Players</a>
+          <a href="/#guilds">Guilds</a>
+          <a href="/#about">About</a>
+        </nav>
+        <SiteSearch />
+      </div>
+    </header>
+  );
+}
+
+export function SiteFooter() {
+  return (
+    <footer className="site-footer" id="about">
+      <div className="site-footer__inner">
+        <a className="brand brand--footer" href="/">Albion Market</a>
+        <p>
+          An independent community project. Not affiliated with Sandbox
+          Interactive GmbH. Game data comes from the public Albion Online API;
+          records may be incomplete or out of date.
+        </p>
+      </div>
+    </footer>
+  );
+}
 
 export function PageContainer({ children }: { children: ReactNode }) {
   return <main className="page-container">{children}</main>;
