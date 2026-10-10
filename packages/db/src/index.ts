@@ -3,6 +3,7 @@ import { combatEventSelect, RECENT_COMBAT_LIMIT, serializeCombatEvent } from "./
 
 export { prisma };
 export type { LoadoutItem, PlayerLoadout } from "./loadout";
+export { parseLoadout } from "./loadout";
 export type { PlayerCombatEvent } from "./combat";
 
 export async function getPlayerById(playerId: string) {

@@ -45,7 +45,7 @@ export default async function PlayerPage({
           <a href="#guild-history">Guild history</a>
         </nav>
         <section className="directory-section" id="recent-kills">
-          <SectionHeading title="Recent kills" description="The latest 20 recorded kills, newest first." />
+          <SectionHeading title="Recent kills" description="The latest 20 recorded kills, newest first. Open a fight to see both players’ equipment." />
           {player.kills.length ? (
             <div className="combat-list">
               {player.kills.map((event) => <CombatEventCard key={event.id} event={event} kind="kill" />)}
@@ -55,7 +55,7 @@ export default async function PlayerPage({
           )}
         </section>
         <section className="directory-section" id="recent-deaths">
-          <SectionHeading title="Recent deaths" description="The latest 20 recorded deaths, newest first." />
+          <SectionHeading title="Recent deaths" description="The latest 20 recorded deaths, newest first. Equipment shows what was worn during each fight." />
           {player.deaths.length ? (
             <div className="combat-list">
               {player.deaths.map((event) => <CombatEventCard key={event.id} event={event} kind="death" />)}
