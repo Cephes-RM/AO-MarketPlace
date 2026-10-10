@@ -3,7 +3,8 @@
   "private": true,
   "version": "0.0.0",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./loadout": "./src/loadout.ts"
   },
   "scripts": {
     "build": "prisma generate",
