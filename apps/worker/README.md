@@ -55,3 +55,24 @@ are lost on restart; restart/durable idempotency is not claimed by this service.
 The 4.1 measurement did not prove the feed's retention window. Events that
 disappear before being fetched cannot be recovered without knowing their IDs;
 complete coverage at the default interval is not guaranteed.
+
+## Monitoring and alerts
+
+The monitoring modules provide structured cycle metrics, consecutive-failure
+tracking and confirmed Discord alert delivery. The monitor reports fetched,
+written and skipped records, skip reasons, HTTP retries, elapsed time and the
+failed stage. It sends one alert per incident after the configured threshold,
+retries unsuccessful delivery and clears the incident after recovery. Logged
+errors redact URLs, and alert messages disable Discord mentions.
+
+Run `pnpm --filter worker monitor:demo` from the repository root for the local
+simulation. It uses mocked API requests and a mocked Discord notifier: three
+failed cycles produce one simulated alert, followed by a healthy cycle that
+resets the incident. It does not access the database or send real messages.
+
+`INGESTION_FAILURE_THRESHOLD` defaults to `3`. `DISCORD_WEBHOOK_URL` is reserved
+for the team-approved webhook and should be supplied through platform secrets.
+These settings are not wired into `src/index.ts` by this change. Integrating
+the monitor around the existing worker cycle and persisting its state in the
+database are a separate follow-up ticket with Marwane. The existing scheduler,
+`WORKER_*` settings and event handler remain the runtime entry point.
