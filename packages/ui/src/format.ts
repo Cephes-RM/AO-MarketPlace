@@ -27,3 +27,13 @@ export function fameRatio(killFame: unknown, deathFame: unknown): string {
   const hundredths = (kills * HUNDRED + deaths / TWO) / deaths;
   return `${hundredths / HUNDRED}.${String(hundredths % HUNDRED).padStart(2, "0")}`;
 }
+
+/** Keep the tier and enchantment visible while making item codes readable. */
+export function formatItemType(value: unknown): string {
+  if (typeof value !== "string" || !value.trim()) return "Unknown item";
+  const id = value.trim();
+  const match = /^T([1-9]\d*)_(.+?)(?:@(\d+))?$/.exec(id);
+  if (!match) return id.replaceAll("_", " ");
+  const [, tier, item, enchantment] = match;
+  return `T${tier}${enchantment ? `.${enchantment}` : ""} · ${item.replaceAll("_", " ")}`;
+}
