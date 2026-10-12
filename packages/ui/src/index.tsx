@@ -2,6 +2,11 @@ import type { ReactNode } from "react";
 
 export const VERSION = "0.0.0";
 
+export { CombatEventCard, formatFame } from "./combat";
+export type { CombatEventSummary } from "./combat";
+export { fameRatio } from "./format";
+export type { FameValue } from "./format";
+
 export function PageContainer({ children }: { children: ReactNode }) {
   return <main className="page-container">{children}</main>;
 }
