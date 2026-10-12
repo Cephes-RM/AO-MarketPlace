@@ -42,4 +42,6 @@ export {
   type SearchResults,
 } from "./search";
 
+export { getAllianceById, getGuildById } from "./marketplace";
+
 export * from "@prisma/client";
