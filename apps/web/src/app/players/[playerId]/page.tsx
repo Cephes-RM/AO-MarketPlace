@@ -4,7 +4,6 @@ import { notFound } from "next/navigation";
 import {
   CombatEventCard,
   EmptyState,
-  ErrorState,
   formatFame,
   fameRatio,
   PageContainer,
@@ -86,14 +85,10 @@ export default async function PlayerPage({
   } catch (error) {
     const message = error instanceof Error ? error.message : "";
 
-    if (message === "Player not found") {
+    if (message === "Player not found" || message === "Invalid player ID") {
       notFound();
     }
 
-    if (message === "Invalid player ID") {
-      return <PageContainer><ErrorState title="Invalid player ID">Check the profile link and try again.</ErrorState></PageContainer>;
-    }
-
-    return <PageContainer><ErrorState /></PageContainer>;
+    throw error;
   }
 }

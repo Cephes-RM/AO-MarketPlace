@@ -311,6 +311,56 @@ summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
 
 button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 
+.recovery-page {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: clamp(40px, 8vw, 88px) 0 32px;
+}
+
+.recovery-page .profile-heading__description {
+  max-width: none;
+}
+
+.recovery-page__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 24px 0 40px;
+}
+
+.recovery-page__actions .button {
+  justify-content: center;
+  min-height: 44px;
+  margin: 0;
+  border: 1px solid var(--line);
+  font-family: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.recovery-page__home {
+  background: var(--surface);
+  color: var(--foreground);
+}
+
+.recovery-page__actions .button:hover {
+  border-color: var(--accent);
+}
+
+.recovery-page__retry:disabled {
+  opacity: .7;
+  cursor: wait;
+}
+
+.recovery-page__search {
+  padding-top: 28px;
+  border-top: 1px solid var(--line);
+}
+
+.recovery-page__search .site-search {
+  max-width: none;
+}
+
 @media (max-width: 950px) {
 .site-header__inner { flex-wrap: wrap; padding: 16px 0; gap: 14px 20px; }
 
