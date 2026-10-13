@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { cache } from "react";
 import { getGuildById } from "@albion/db";
 import {
   EmptyState,
@@ -13,10 +14,12 @@ import {
 
 type Props = { params: Promise<{ guildId: string }> };
 
+const getCachedGuildById = cache(getGuildById);
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { guildId } = await params;
   try {
-    const guild = await getGuildById(guildId);
+    const guild = await getCachedGuildById(guildId);
     return {
       title: `${guild.name} Guild`,
       description: `Explore ${guild.name}, its members, and alliance on Albion Market.`,
@@ -28,10 +31,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function GuildPage({ params }: Props) {
   const { guildId } = await params;
-  let guild: Awaited<ReturnType<typeof getGuildById>>;
+  let guild: Awaited<ReturnType<typeof getCachedGuildById>>;
 
   try {
-    guild = await getGuildById(guildId);
+    guild = await getCachedGuildById(guildId);
   } catch (error) {
     if (
       error instanceof Error &&
