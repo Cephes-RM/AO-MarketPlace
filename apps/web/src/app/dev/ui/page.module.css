@@ -1,0 +1,80 @@
+.intro {
+  max-width: var(--size-650);
+  margin: var(--space-0) var(--space-0) var(--space-26);
+  color: var(--muted);
+  font-size: var(--text-14);
+  line-height: var(--leading-body);
+}
+
+.intro code, .card code, .foundations code {
+  font-family: var(--font-family-mono);
+  overflow-wrap: anywhere;
+}
+
+.navigation {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-12);
+  margin-bottom: var(--space-40);
+}
+
+.navigation a {
+  padding: var(--space-10) var(--space-15);
+  border: var(--border-default);
+  font-size: var(--text-13);
+}
+
+.navigation a:hover { border-color: var(--accent); color: var(--accent); }
+.section { margin-bottom: var(--space-65); scroll-margin-top: var(--space-24); }
+
+.grid, .examples {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--size-220)), 1fr));
+  gap: var(--space-16);
+  padding: var(--space-0);
+  margin: var(--space-0);
+  list-style: none;
+}
+
+.card {
+  min-width: 0;
+  padding: var(--space-16);
+  border: var(--border-default);
+  background: var(--surface);
+}
+
+.card strong, .card code { display: block; }
+.card strong { margin-bottom: var(--space-8); font-size: var(--text-14); font-weight: var(--weight-600); }
+.card code { font-size: var(--text-12); line-height: var(--leading-compact); }
+.value { margin-top: var(--space-8); color: var(--muted); }
+
+.swatch {
+  block-size: var(--size-64);
+  margin-bottom: var(--space-16);
+  border: var(--border-default);
+}
+
+.typeSample {
+  display: flex;
+  align-items: center;
+  min-block-size: var(--size-145);
+  margin-bottom: var(--space-16);
+  color: var(--foreground);
+  font-family: var(--font-family-heading);
+  line-height: var(--leading-display);
+}
+
+.spaceTrack, .borderTrack {
+  display: flex;
+  align-items: center;
+  min-block-size: var(--size-64);
+  margin-bottom: var(--space-16);
+}
+
+.spaceTrack span { block-size: var(--space-8); background: var(--accent); }
+.borderTrack span { inline-size: var(--size-64); block-size: var(--size-48); border: var(--border-default); }
+
+.foundations { margin: var(--space-0); border-top: var(--border-default); }
+.foundations > div { display: flex; flex-wrap: wrap; gap: var(--space-8) var(--space-24); padding: var(--space-12) var(--space-0); border-bottom: var(--border-default); }
+.foundations dt, .foundations dd { flex: 1 1 var(--size-310); min-width: 0; margin: var(--space-0); font-size: var(--text-13); line-height: var(--leading-compact); }
+.foundations dd { color: var(--muted); }

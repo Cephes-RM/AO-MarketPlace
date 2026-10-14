@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { SiteFooter, SiteHeader } from "@albion/ui";
+import "@albion/ui/tokens.css";
 import "./globals.css";
 
 const geistSans = Geist({
