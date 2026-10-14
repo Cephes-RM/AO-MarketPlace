@@ -73,6 +73,7 @@
 
 .spaceTrack span { block-size: var(--space-8); background: var(--accent); }
 .borderTrack span { inline-size: var(--size-64); block-size: var(--size-48); border: var(--border-default); }
+.borderTrack .circleSample { block-size: var(--size-64); }
 
 .foundations { margin: var(--space-0); border-top: var(--border-default); }
 .foundations > div { display: flex; flex-wrap: wrap; gap: var(--space-8) var(--space-24); padding: var(--space-12) var(--space-0); border-bottom: var(--border-default); }
