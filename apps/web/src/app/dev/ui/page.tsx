@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import {
   EmptyState,
   ErrorState,
@@ -20,7 +21,7 @@ export const metadata: Metadata = {
 export default function UiReferencePage() {
   return (
     <PageContainer>
-      <div className="breadcrumb"><a href="/">Home</a><span>/</span><span>UI reference</span></div>
+      <div className="breadcrumb"><Link href="/">Home</Link><span>/</span><span>UI reference</span></div>
       <ProfileHeading
         eyebrow="DEVELOPER REFERENCE"
         title="Design tokens"
