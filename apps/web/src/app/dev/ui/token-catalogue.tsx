@@ -16,8 +16,8 @@ function TokenPreview({ token, kind }: { token: DesignToken; kind: DesignTokenGr
     return <div className={styles.spaceTrack} aria-hidden="true"><span style={{ inlineSize: value }} /></div>;
   }
   const borderStyle: CSSProperties = { [token.borderProperty ?? "border"]: value };
-  if (token.borderProperty === "borderRadius") borderStyle.blockSize = "var(--size-64)";
-  return <div className={styles.borderTrack} aria-hidden="true"><span style={borderStyle} /></div>;
+  const sampleClass = token.borderProperty === "borderRadius" ? styles.circleSample : undefined;
+  return <div className={styles.borderTrack} aria-hidden="true"><span className={sampleClass} style={borderStyle} /></div>;
 }
 
 export function TokenCatalogue() {
