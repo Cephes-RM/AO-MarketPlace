@@ -73,7 +73,7 @@ export function createAlbionClient(options: AlbionClientOptions): AlbionClient {
         pagination?: AlbionPagination,
       ): Promise<AlbionKillboardEvent[]> {
         return parseKillboardEvents(
-          await getJson(withPagination("events", pagination, { maxLimit: 51 })),
+          await getJson(recentEventsPath(pagination)),
         );
       },
 
@@ -82,7 +82,7 @@ export function createAlbionClient(options: AlbionClientOptions): AlbionClient {
         signal?: AbortSignal,
       ): Promise<AlbionBatchResult<AlbionKillboardEvent>> {
         return parseKillboardEventsTolerant(
-          await getJson(withPagination("events", pagination, { maxLimit: 51 }), signal),
+          await getJson(recentEventsPath(pagination), signal),
         );
       },
 
@@ -285,6 +285,12 @@ function encodeId(value: string, kind: string): string {
   }
 
   return encodeURIComponent(id);
+}
+
+function recentEventsPath(pagination?: AlbionPagination): string {
+  const path = withPagination("events", pagination, { maxLimit: 51 });
+  // Reused feed URLs can return pages cached from different snapshots.
+  return `${path}${path.includes("?") ? "&" : "?"}_=${crypto.randomUUID()}`;
 }
 
 function withPagination(

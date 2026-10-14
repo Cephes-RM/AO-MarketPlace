@@ -145,15 +145,9 @@ export function createWorker(options: WorkerOptions) {
         failedIds.set(id, 0);
       }
 
-      const madeProgress = [...pageIds].some((id) => !fetchedIds.has(id));
       for (const id of pageIds) fetchedIds.add(id);
       if (!pageWasFull || (completedScanBoundary !== undefined && pageIds.has(completedScanBoundary))) {
         scanCompleted = true;
-        pageWasFull = false;
-        break;
-      }
-      if (pageIds.size > 0 && !madeProgress) {
-        options.logger.warn("Pagination made no progress; older events may be unavailable.");
         pageWasFull = false;
         break;
       }

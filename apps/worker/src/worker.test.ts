@@ -312,7 +312,7 @@ describe("worker", () => {
     expect(log.error).toHaveBeenCalledTimes(2);
   });
 
-  it("stops if the API repeats a full page instead of advancing", async () => {
+  it("bounds an entirely repeated feed by the maximum offset", async () => {
     let requests = 0;
     const log = logger();
     const worker = testWorker({
@@ -325,10 +325,31 @@ describe("worker", () => {
 
     await expect(worker.runCycle()).resolves.toMatchObject({ newEvents: 51 });
     await expect(worker.runCycle()).resolves.toMatchObject({ newEvents: 0 });
-    expect(requests).toBe(4);
-    expect(log.warn).toHaveBeenCalledWith(
-      "Pagination made no progress; older events may be unavailable.",
-    );
+    expect(requests).toBe(22);
+    expect(log.warn).not.toHaveBeenCalled();
+  });
+
+  it("continues past consecutive repeated pages to reach unseen events", async () => {
+    const offsets: number[] = [];
+    const onEvents = vi.fn(async (_events: { id: number }[]) => {});
+    const log = logger();
+    const worker = testWorker({
+      fetch: async (url) => {
+        const offset = Number(new URL(url).searchParams.get("offset"));
+        offsets.push(offset);
+        return response(200, offset < 153
+          ? Array.from({ length: 51 }, (_, i) => event(200 - i)) : [event(149)]);
+      },
+      onEvents, logger: log,
+    });
+    await expect(worker.runCycle()).resolves.toMatchObject({ newEvents: 52 });
+    expect(offsets).toEqual([0, 51, 102, 153]);
+    expect(onEvents.mock.calls[0]?.[0].map(({ id }) => id))
+      .toEqual(Array.from({ length: 52 }, (_, i) => 200 - i));
+    await expect(worker.runCycle()).resolves.toMatchObject({ newEvents: 0 });
+    expect(offsets).toEqual([0, 51, 102, 153, 0]);
+    expect(onEvents).toHaveBeenCalledOnce();
+    expect(log.warn).not.toHaveBeenCalled();
   });
 
   it("deduplicates a logging-only handler across intervening batches", async () => {
