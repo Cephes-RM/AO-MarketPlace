@@ -423,9 +423,29 @@ describe("createAlbionClient", () => {
     await expect(
       client.gameinfo.getRecentEvents({ limit: 25, offset: 50 }),
     ).resolves.toEqual([]);
-    expect(requests).toEqual([
-      "https://example.test/api/events?limit=25&offset=50",
-    ]);
+    const url = new URL(requests[0]);
+    expect(url.origin + url.pathname).toBe("https://example.test/api/events");
+    expect(url.searchParams.get("limit")).toBe("25");
+    expect(url.searchParams.get("offset")).toBe("50");
+    expect(url.searchParams.get("_")).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
+  it("uses fresh URLs for strict and tolerant feed reads without changing detail requests", async () => {
+    const requests: URL[] = [];
+    const client = createAlbionClient({ region: "europe", fetch: async (url) => {
+      requests.push(new URL(url));
+      return jsonResponse(new URL(url).pathname.endsWith("/events/42") ? eventPayload() : []);
+    } });
+    await client.gameinfo.getRecentEvents();
+    await client.gameinfo.getRecentEventsTolerant();
+    await client.gameinfo.getRecentEventsTolerant({ limit: 51, offset: 1000 });
+    await client.gameinfo.getEvent(42);
+    const tokens = requests.slice(0, 3).map((url) => url.searchParams.get("_"));
+    expect(tokens.every((token) => typeof token === "string" && /^[0-9a-f-]{36}$/.test(token))).toBe(true);
+    expect(new Set(tokens).size).toBe(3);
+    expect(requests[2].searchParams.get("limit")).toBe("51");
+    expect(requests[2].searchParams.get("offset")).toBe("1000");
+    expect(requests[3].search).toBe("");
   });
 
   it("keeps valid events and reports malformed events through the tolerant method", async () => {

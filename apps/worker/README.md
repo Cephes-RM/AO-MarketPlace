@@ -12,15 +12,26 @@ below. After a scan completes and its handler succeeds, it remembers the newest
 event ID. Later cycles read from the newest page until reaching the page with
 that saved ID, rather than rescanning all history. Only that boundary stops
 the scan; other known IDs are filtered without stopping pagination. A short
-page also completes the scan. Failed, capped, timed-out, or repeated-page scans
+page also completes the scan. Failed, capped, or timed-out scans
 leave the boundary unchanged. A missing previous boundary produces a warning.
+
+Repeated full pages do not end a scan: later offsets can still contain unseen
+events. IDs are deduplicated, and offset, page-count and time limits keep the
+scan bounded. The shared client gives each feed read a unique `_` query value
+to avoid reusing stale cached page URLs; detail endpoints are unchanged.
 
 This policy assumes newest-first publication. Events published late below the
 boundary, or omitted by a response or moving offset pagination, may be missed.
 Known failed IDs are still retried separately; they do not depend on scanning
 older pages. This is incremental polling, not a guarantee of complete history.
 
-`WORKER_MAX_PAGES` defaults to 100. `WORKER_CYCLE_TIMEOUT_MS` defaults to 120000
+`WORKER_MAX_PAGES` defaults to 100, but the events endpoint accepts offsets
+only up to 1000. Scans fetch the final page at offset 1000 and stop there, even
+when it is full. This completes the accessible feed window, not all event
+history. The final page overlaps the
+previous page; event IDs are deduplicated before handling.
+
+`WORKER_CYCLE_TIMEOUT_MS` defaults to 120000
 and bounds API work, including retries and response bodies. Half of that budget
 is reserved for scanning and the remainder allows recovery to progress even
 when scanning times out. Page, time, and state limits produce warnings about

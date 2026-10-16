@@ -43,6 +43,11 @@ const events = await albion.gameinfo.getRecentEvents({ limit: 10 });
 const event = await albion.gameinfo.getEvent(123456);
 ```
 
+Recent-event feed reads (strict and tolerant) append a unique `_` query value
+to avoid reusing inconsistently cached page URLs. This improves freshness but
+does not freeze the feed: moving offset pagination can still overlap or omit
+records. Detail requests, player endpoints and item icons are unchanged.
+
 Killboard events include the killer, victim, average item power, and equipment.
 Empty equipment slots can be `null` or missing.
 The Europe Gameinfo player-kills and player-deaths endpoints currently return
