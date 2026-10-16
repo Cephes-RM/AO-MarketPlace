@@ -4,7 +4,6 @@ import { notFound } from "next/navigation";
 import { getAllianceById } from "@albion/db";
 import {
   EmptyState,
-  ErrorState,
   PageContainer,
   ProfileHeading,
   SectionHeading,
@@ -21,8 +20,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       title: `${alliance.name} Alliance`,
       description: `Explore ${alliance.name}, its guilds, and community details on Albion Market.`,
     };
-  } catch {
-    return { title: "Alliance not found" };
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      (error.message === "Alliance not found" || error.message === "Invalid alliance ID")
+    ) {
+      notFound();
+    }
+    throw error;
   }
 }
 
@@ -39,13 +44,7 @@ export default async function AlliancePage({ params }: Props) {
     ) {
       notFound();
     }
-    return (
-      <PageContainer>
-        <ErrorState title="Alliance details are unavailable">
-          We couldn’t load this alliance. Please try again in a moment.
-        </ErrorState>
-      </PageContainer>
-    );
+    throw error;
   }
 
   const memberCount = alliance.guilds.reduce((sum, guild) => sum + guild._count.memberships, 0);

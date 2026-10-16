@@ -5,7 +5,6 @@ import { cache } from "react";
 import { getGuildById } from "@albion/db";
 import {
   EmptyState,
-  ErrorState,
   PageContainer,
   ProfileHeading,
   SectionHeading,
@@ -24,8 +23,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       title: `${guild.name} Guild`,
       description: `Explore ${guild.name}, its members, and alliance on Albion Market.`,
     };
-  } catch {
-    return { title: "Guild not found" };
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      (error.message === "Guild not found" || error.message === "Invalid guild ID")
+    ) {
+      notFound();
+    }
+    throw error;
   }
 }
 
@@ -42,7 +47,7 @@ export default async function GuildPage({ params }: Props) {
     ) {
       notFound();
     }
-    return <PageContainer><ErrorState title="Guild details are unavailable" /></PageContainer>;
+    throw error;
   }
 
   return (
