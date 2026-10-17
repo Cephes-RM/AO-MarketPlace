@@ -1,7 +1,9 @@
 import { createAlbionClient, isAlbionRegion } from "@albion/albion-client";
-import { prisma, writeIngestBatch } from "@albion/db";
+import { createWorkerStateStore, prisma, writeIngestBatch } from "@albion/db";
 import { mapKillEvents } from "./ingest-mapping.ts";
 import { createWorker } from "./worker.ts";
+import { createIngestionMonitor } from "./monitor";
+import { discordNotifier } from "./discord";
 
 const region = process.env.ALBION_REGION ?? "europe";
 if (!isAlbionRegion(region)) {
@@ -21,25 +23,41 @@ function positiveInteger(name: string, fallback: number, maximum = Number.MAX_SA
   return value;
 }
 
-const worker = createWorker({
-  client: createAlbionClient({ region, includeRaw: true }).gameinfo,
+const store = createWorkerStateStore(region);
+const monitor = createIngestionMonitor({
+  region,
+  store,
+  failureThreshold: positiveInteger("INGESTION_FAILURE_THRESHOLD", 3),
+  sendAlert: process.env.DISCORD_WEBHOOK_URL ? discordNotifier(process.env.DISCORD_WEBHOOK_URL) : undefined,
+});
+const worker: ReturnType<typeof createWorker> = createWorker({
+  client: createAlbionClient({
+    region,
+    includeRaw: true,
+    baseUrl: process.env.ALBION_GAMEINFO_BASE_URL || undefined,
+    onRetry: () => worker.onRetry(),
+  }).gameinfo,
+  monitor,
+  stateStore: store,
   intervalMs: positiveInteger("WORKER_INTERVAL_MS", 600_000, 2_147_483_647),
   cycleTimeoutMs: positiveInteger("WORKER_CYCLE_TIMEOUT_MS", 120_000, 2_147_483_647),
   maxPages: positiveInteger("WORKER_MAX_PAGES", 100),
   logger: console,
   async findExistingIds(ids) {
-    if (ids.length === 0) return new Set();
     const rows = await prisma.killEvent.findMany({
       where: { id: { in: ids } },
       select: { id: true },
     });
     return new Set(rows.map((row) => row.id));
   },
-  async onEvents(events) {
+  async onEvents(events, context) {
     const { batch, skipped } = mapKillEvents(events, region);
     for (const entry of skipped) console.warn("Skipped Albion event that cannot be stored.", entry);
     // Database outages throw here, so the worker keeps the events pending and retries.
     const result = await writeIngestBatch(batch, { logger: console });
+    context?.written(result.written);
+    for (const entry of skipped) context?.skip(entry.reason);
+    context?.skip("database_constraint", result.skipped);
     console.info(
       `Stored ${result.written} of ${events.length} event(s); skipped ${result.skipped + skipped.length}.`,
     );

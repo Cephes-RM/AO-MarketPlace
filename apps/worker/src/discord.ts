@@ -8,11 +8,19 @@ export function discordNotifier(webhook: string, request: typeof fetch = fetch) 
   // Request confirmation; a fire-and-forget 204 can hide an unsaved message.
   url.searchParams.set("wait", "true");
   return async (report: RunReport) => {
-    const content = [
+    const incident = report.alertType === "polling_interval" ? [
+      `Albion ingestion missed its previous scan boundary for ${report.consecutiveBoundaryMisses} consecutive runs (${report.region}).`,
+      "The polling interval is too long for reliable feed coverage. Poll more often; also check feed consistency.",
+      "Stage: feed pagination",
+      `Missing-boundary warnings this run: ${report.boundaryMisses}`,
+    ] : [
       `Albion ingestion failed ${report.consecutiveFailures} consecutive cycles (${report.region}).`,
       `Failed stage: ${report.failedStage ?? "unknown"}`,
-      `Fetched: ${report.fetched}; written: ${report.written}; skipped: ${report.skipped}; retries: ${report.retries}; duration: ${report.durationMs}ms.`,
       `Error: ${report.error ?? "Unknown error"}`,
+    ];
+    const content = [
+      ...incident,
+      `Fetched: ${report.fetched}; written: ${report.written}; skipped: ${report.skipped}; retries: ${report.retries}; duration: ${report.durationMs}ms.`,
       `Run: ${report.runId}`,
     ].join("\n");
     const response = await request(url, {
