@@ -1,6 +1,9 @@
 export interface MonitorState {
   consecutiveFailures: number;
   alerted: boolean;
+  // Older file-backed state does not contain boundary incident fields.
+  consecutiveBoundaryMisses?: number;
+  boundaryAlerted?: boolean;
 }
 
 export interface StateStore {
@@ -12,7 +15,7 @@ export interface RunReport {
   event: "ingestion.run";
   runId: string;
   region: string;
-  status: "success" | "failure";
+  status: "success" | "failure" | "cancelled";
   fetched: number;
   written: number;
   skipped: number;
@@ -22,6 +25,10 @@ export interface RunReport {
   failedStage: string | null;
   error: string | null;
   consecutiveFailures: number;
+  boundaryMisses: number;
+  consecutiveBoundaryMisses: number;
+  boundaryAlertStatus: RunReport["alertStatus"];
+  alertType?: "failure" | "polling_interval";
   alertStatus: "not-needed" | "sent" | "already-sent" | "unconfigured" | "failed";
 }
 
@@ -31,6 +38,7 @@ export interface RunContext {
   written(count: number): void;
   skip(reason: string, count?: number): void;
   retry(): void;
+  boundaryMiss(): void;
 }
 
 interface MonitorOptions {
@@ -64,19 +72,24 @@ export function createIngestionMonitor(options: MonitorOptions) {
   const log = options.log ?? ((entry) => console.log(JSON.stringify(entry)));
   const now = options.now ?? Date.now;
   let running = false;
+  let state: MonitorState = { consecutiveFailures: 0, alerted: false };
+  let stateLoaded = false;
+  let pendingWrite = false;
+  let boundaryStreakBrokenBeforeLoad = false;
 
   return {
-    async run(work: (context: RunContext) => Promise<void>): Promise<RunReport> {
+    async run(work: (context: RunContext) => Promise<void>, signal?: AbortSignal): Promise<RunReport> {
       if (running) throw new Error("An ingestion cycle is already running");
       running = true;
       const started = now();
       let stage = "monitor_state";
-      let state: MonitorState = { consecutiveFailures: 0, alerted: false };
+      let stateRead = false;
       const report: RunReport = {
         event: "ingestion.run", runId: new Date(started).toISOString(), region: options.region,
         status: "success", fetched: 0, written: 0, skipped: 0, skipReasons: {},
         retries: 0, durationMs: 0, failedStage: null, error: null,
         consecutiveFailures: 0, alertStatus: "not-needed",
+        boundaryMisses: 0, consecutiveBoundaryMisses: 0, boundaryAlertStatus: "not-needed",
       };
       const add = (count: number) => {
         if (!Number.isSafeInteger(count) || count < 0) throw new Error("Metric counts must be non-negative integers");
@@ -95,44 +108,92 @@ export function createIngestionMonitor(options: MonitorOptions) {
           });
         },
         retry: () => { report.retries += 1; },
+        boundaryMiss: () => { report.boundaryMisses += 1; },
       };
 
       try {
         try {
-          state = await store.read();
+          const saved = await store.read();
+          if (!stateLoaded) {
+            // Failures counted before the first successful read are additional to saved history.
+            state = { ...saved, consecutiveFailures: saved.consecutiveFailures + state.consecutiveFailures,
+              alerted: saved.alerted || state.alerted };
+            if (boundaryStreakBrokenBeforeLoad && state.consecutiveBoundaryMisses !== undefined) {
+              state = { ...state, consecutiveBoundaryMisses: 0, boundaryAlerted: false };
+            }
+          } else if (!pendingWrite) state = { ...saved };
+          stateLoaded = true;
+          stateRead = true;
           await work(context);
-          state = { consecutiveFailures: 0, alerted: false };
+          if (signal?.aborted) report.status = "cancelled";
         } catch (error) {
-          report.status = "failure";
-          report.failedStage = stage;
-          report.error = safeError(error);
-          state = { ...state, consecutiveFailures: state.consecutiveFailures + 1 };
+          if (signal?.aborted) report.status = "cancelled";
+          else {
+            report.status = "failure";
+            report.failedStage = stage;
+            report.error = safeError(error);
+            state = { ...state, consecutiveFailures: state.consecutiveFailures + 1 };
+            pendingWrite = true;
+          }
+        }
+        if (report.status !== "cancelled") {
+          if (report.boundaryMisses > 0) {
+            state = { ...state, consecutiveBoundaryMisses: (state.consecutiveBoundaryMisses ?? 0) + 1 };
+          } else {
+            if (!stateLoaded) boundaryStreakBrokenBeforeLoad = true;
+            if (state.consecutiveBoundaryMisses !== undefined) {
+              state = { ...state, consecutiveBoundaryMisses: 0, boundaryAlerted: false };
+            }
+          }
         }
         try {
-          await store.write(state);
+          // A reset is successful only when its write succeeds; otherwise the incident continues.
+          if (stateRead && report.status !== "cancelled") {
+            const next = report.status === "success" ? { ...state, consecutiveFailures: 0, alerted: false } : state;
+            await store.write(next);
+            state = next;
+            pendingWrite = false;
+          }
         } catch (error) {
           if (report.status === "success") {
             report.status = "failure";
             report.failedStage = "monitor_state";
             report.error = safeError(error);
-            state = { consecutiveFailures: 1, alerted: false };
+            state = { ...state, consecutiveFailures: state.consecutiveFailures + 1 };
           }
+          pendingWrite = true;
           log({ event: "ingestion.monitor_error", error: safeError(error) });
         }
         report.consecutiveFailures = state.consecutiveFailures;
+        report.consecutiveBoundaryMisses = state.consecutiveBoundaryMisses ?? 0;
         report.durationMs = Math.max(0, now() - started);
-        if (report.status === "failure" && state.consecutiveFailures >= threshold) {
-          if (state.alerted) report.alertStatus = "already-sent";
-          else if (!options.sendAlert) report.alertStatus = "unconfigured";
+        for (const incident of [
+          { needed: report.status === "failure" && state.consecutiveFailures >= threshold,
+            flag: "alerted", status: "alertStatus", type: "failure" },
+          { needed: report.status !== "cancelled" && report.boundaryMisses > 0 && report.consecutiveBoundaryMisses >= threshold,
+            flag: "boundaryAlerted", status: "boundaryAlertStatus", type: "polling_interval" },
+        ] as const) {
+          if (!incident.needed) continue;
+          if (state[incident.flag]) report[incident.status] = "already-sent";
+          else if (!options.sendAlert) report[incident.status] = "unconfigured";
           else {
             try {
-              await options.sendAlert({ ...report });
-              report.alertStatus = "sent";
-              // Persist only after delivery; retry an unsuccessful webhook next cycle.
-              await store.write({ ...state, alerted: true });
+              await options.sendAlert({ ...report, alertType: incident.type });
+              report[incident.status] = "sent";
+              state = { ...state, [incident.flag]: true };
+              pendingWrite = true;
             } catch (error) {
-              report.alertStatus = "failed";
+              report[incident.status] = "failed";
               log({ event: "ingestion.monitor_error", error: safeError(error) });
+            }
+            // Confirmed delivery is not a webhook failure if its database acknowledgment fails.
+            if (report[incident.status] === "sent" && stateRead) {
+              try {
+                await store.write(state);
+                pendingWrite = false;
+              } catch (error) {
+                log({ event: "ingestion.monitor_error", error: safeError(error) });
+              }
             }
           }
         }

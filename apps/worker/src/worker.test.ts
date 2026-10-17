@@ -312,6 +312,40 @@ describe("worker", () => {
     expect(log.error).toHaveBeenCalledTimes(2);
   });
 
+  it.each(["pagination", "recovery", "scheduler"])("does not expose API URLs in raw %s error logs", async (mode) => {
+    const log = logger();
+    const controller = new AbortController();
+    const secret = "sentinel-private-token";
+    let feedReads = 0;
+    const worker = createWorker({
+      client: createAlbionClient({ region: "europe", baseUrl: `https://example.test/${secret}/`,
+        retry: { delaysMs: [] }, fetch: async (url) => {
+          const path = new URL(url);
+          if (mode === "scheduler" || path.pathname.endsWith("/events/45")) return response(404, null);
+          if (mode === "recovery") return response(200, feedReads++ === 0 ? [{ EventId: 45 }] : []);
+          return path.searchParams.get("offset") === "0"
+            ? response(200, Array.from({ length: 51 }, (_, i) => event(200 - i))) : response(404, null);
+        } }).gameinfo,
+      findExistingIds: async () => new Set(), onEvents: async () => {}, intervalMs: 1, logger: log,
+    });
+    if (mode === "scheduler") {
+      log.error.mockImplementation(() => controller.abort());
+      await worker.run(controller.signal);
+    } else {
+      await worker.runCycle();
+      if (mode === "recovery") await worker.runCycle();
+    }
+    const entries = mode === "recovery" ? log.warn.mock.calls : log.error.mock.calls;
+    expect(entries.length).toBeGreaterThan(0);
+    expect(JSON.stringify(entries)).not.toContain(secret);
+    if (mode === "recovery") {
+      expect(log.warn).toHaveBeenCalledWith("Could not recover Albion event; retrying next cycle.",
+        { id: 45, error: expect.any(String) });
+    } else {
+      expect(log.error).toHaveBeenCalledWith(expect.any(String), expect.any(String));
+    }
+  });
+
   it("bounds an entirely repeated feed by the maximum offset", async () => {
     let requests = 0;
     const log = logger();

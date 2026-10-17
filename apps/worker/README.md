@@ -1,7 +1,9 @@
 # Albion ingestion worker
 
 From the repository root, create `.env` from `.env.example` and set the Neon
-`DATABASE_URL` and `DIRECT_URL`, then run `docker compose up --build`. The worker
+`DATABASE_URL` and `DIRECT_URL`. Apply the committed database migrations through
+your team's normal migration process before starting this version, then run
+`docker compose up --build`. The worker
 starts immediately and waits `WORKER_INTERVAL_MS` after each cycle finishes
 before starting the next (default: 10 minutes). `ALBION_REGION` defaults to
 `europe`. API calls use `@albion/albion-client`; existing IDs are read through
@@ -34,7 +36,7 @@ previous page; event IDs are deduplicated before handling.
 `WORKER_CYCLE_TIMEOUT_MS` defaults to 120000
 and bounds API work, including retries and response bodies. Half of that budget
 is reserved for scanning and the remainder allows recovery to progress even
-when scanning times out. Page, time, and state limits produce warnings about
+when scanning times out. Page and time limits produce warnings about
 incomplete work. Each scan starts at offset zero; these limits can prevent
 older history from being reached. The time budget does not cancel database
 queries or the handler; database connection/query timeouts must be configured
@@ -59,9 +61,19 @@ seen processed IDs, including across empty responses. Consecutive identical
 successful cycles within that retained window do not repeat the event handler;
 regular cycle logs and HTTP reads still occur. Evicted IDs may be reported again.
 
-This PLAYERS-40 handler only logs new events; it writes nothing. PLAYERS-41
-(4.7) adds database upserts. Pending work, failed IDs, and deduplication state
-are lost on restart; restart/durable idempotency is not claimed by this service.
+The event handler only logs new events; it does not insert them. PLAYERS-41
+(4.7) adds event database upserts. The monitor failure count, alert-delivery flag
+and completed scan boundary are stored in one `IngestionState` row per region.
+The boundary is restored after restart and saved only after a completed scan's
+existing-ID lookup and both feed and recovery handlers succeed. It stays
+unchanged while known recovery IDs still have attempts remaining. Monitor writes
+and boundary writes update separate columns, so neither overwrites the other's
+state.
+
+Pending work, failed IDs, and the processed-ID cache remain in memory and are
+lost on restart. Saving the boundary does not make those queues durable or
+guarantee event persistence. Run one worker replica per region; this state
+table does not provide multi-worker locking.
 
 The 4.1 measurement did not prove the feed's retention window. Events that
 disappear before being fetched cannot be recovered without knowing their IDs;
@@ -81,9 +93,68 @@ simulation. It uses mocked API requests and a mocked Discord notifier: three
 failed cycles produce one simulated alert, followed by a healthy cycle that
 resets the incident. It does not access the database or send real messages.
 
-`INGESTION_FAILURE_THRESHOLD` defaults to `3`. `DISCORD_WEBHOOK_URL` is reserved
-for the team-approved webhook and should be supplied through platform secrets.
-These settings are not wired into `src/index.ts` by this change. Integrating
-the monitor around the existing worker cycle and persisting its state in the
-database are a separate follow-up ticket with Marwane. The existing scheduler,
-`WORKER_*` settings and event handler remain the runtime entry point.
+Every scheduled cycle now runs through `createIngestionMonitor`. Client
+`onRetry` notifications increment that cycle's retry metric. Failed API scans,
+including partial or capped scans, are reported as failures even if their
+partial events were handled. Failed stages are `fetch`, `event_recovery`,
+`existing_ids`, `event_handler`, `worker_state` or `monitor_state`.
+Shutdown observed before monitor-state persistence reports `cancelled` without
+resetting an existing incident. If shutdown arrives after successful work and
+its reset write has started, that write can finish normally and report success.
+Database outages accumulate failures and confirmed alert delivery in memory;
+when storage recovers, pending incident state is reconciled and saved. This
+unsaved state cannot survive a restart while the database remains unavailable.
+Delivery and its database acknowledgment are separate: a failed acknowledgment
+is logged and retried without resending in the same process. A crash between
+delivery and acknowledgment can still produce a duplicate after restart.
+
+`INGESTION_FAILURE_THRESHOLD` defaults to `3`. Set `DISCORD_WEBHOOK_URL` to the
+team-approved webhook through platform secrets. Until task 4.7 inserts events,
+`written` is always zero: successfully logged new events have skip reason
+`not_persisted`. Other reasons include `malformed`, `invalid_id`, `duplicate`,
+`already_processed` and `already_persisted`. Fetched/skipped counts describe
+records encountered, including overlapping pages, not just unique events.
+
+### Missing-boundary monitoring
+
+Each existing "Previous scan boundary was not found" warning increments
+`boundaryMisses` in that run's structured log. Warnings are counted after a
+completed scan, before handlers and recovery, so their failures or queued work
+cannot hide a coverage warning. Boundary persistence still waits for the
+success checks described above. `consecutiveBoundaryMisses` counts affected
+runs, not the number of warnings or missing kills. It uses
+the same threshold (default `3`) and sends a separate polling-interval alert
+that recommends polling more often. A run can finish successfully and still
+raise this coverage alert; normal execution-failure alerts remain independent.
+
+A run with zero boundary warnings resets the streak and its alert flag, even
+if execution failed. This tracks consecutive warning-bearing runs; a reset is
+not proof of healthy coverage during an outage. Shutdown does not change the
+streak. Both the streak and its
+alert flag are persisted in the same `IngestionState` row and restored on
+restart. Delivery failures are retried on later affected runs; confirmed
+delivery is suppressed until a clean run resets the incident.
+
+A missing boundary signals possible coverage gaps, not an exact number of
+missed kills. Too-long polling intervals are one cause; inconsistent or delayed
+API responses can also contribute. This alert does not automatically change
+the configured interval or recover unavailable history.
+
+### Approved live alert test (PLAYERS-49)
+
+After deployment, coordinate with the team before changing the running worker:
+
+1. Configure the team webhook in platform secrets. Temporarily set
+   `INGESTION_FAILURE_THRESHOLD=1` for the within-one-cycle alert check.
+2. Set `ALBION_GAMEINFO_BASE_URL` to
+   `https://gameinfo-ams.albiononline.com/api/gameinfo/intentional-failure/`
+   and restart/redeploy through the platform. This overrides only the shared
+   client's URL; the worker still uses the client for every API request.
+3. Verify a structured `ingestion.run` failure with `failedStage: "fetch"` and
+   `alertStatus: "sent"`, plus the matching stage-labelled message in Discord.
+4. Clear the URL override, restore threshold `3`, and restart/redeploy. Confirm
+   a successful cycle resets the failure count and alert flag. Separately
+   verify three consecutive failed cycles produce one alert at threshold `3`.
+
+Do not leave the broken URL configured. These steps send real messages and
+interrupt ingestion; local tests use mocks and do not perform this live test.
