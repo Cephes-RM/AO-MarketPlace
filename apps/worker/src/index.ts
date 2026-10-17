@@ -1,6 +1,8 @@
 import { createAlbionClient, isAlbionRegion } from "@albion/albion-client";
-import { prisma } from "@albion/db";
+import { createWorkerStateStore, prisma } from "@albion/db";
 import { createWorker } from "./worker.ts";
+import { createIngestionMonitor } from "./monitor";
+import { discordNotifier } from "./discord";
 
 const region = process.env.ALBION_REGION ?? "europe";
 if (!isAlbionRegion(region)) {
@@ -20,22 +22,35 @@ function positiveInteger(name: string, fallback: number, maximum = Number.MAX_SA
   return value;
 }
 
-const worker = createWorker({
-  client: createAlbionClient({ region }).gameinfo,
+const store = createWorkerStateStore(region);
+const monitor = createIngestionMonitor({
+  region,
+  store,
+  failureThreshold: positiveInteger("INGESTION_FAILURE_THRESHOLD", 3),
+  sendAlert: process.env.DISCORD_WEBHOOK_URL ? discordNotifier(process.env.DISCORD_WEBHOOK_URL) : undefined,
+});
+const worker: ReturnType<typeof createWorker> = createWorker({
+  client: createAlbionClient({
+    region,
+    baseUrl: process.env.ALBION_GAMEINFO_BASE_URL || undefined,
+    onRetry: () => worker.onRetry(),
+  }).gameinfo,
+  monitor,
+  stateStore: store,
   intervalMs: positiveInteger("WORKER_INTERVAL_MS", 600_000, 2_147_483_647),
   cycleTimeoutMs: positiveInteger("WORKER_CYCLE_TIMEOUT_MS", 120_000, 2_147_483_647),
   maxPages: positiveInteger("WORKER_MAX_PAGES", 100),
   logger: console,
   async findExistingIds(ids) {
-    if (ids.length === 0) return new Set();
     const rows = await prisma.killEvent.findMany({
       where: { id: { in: ids } },
       select: { id: true },
     });
     return new Set(rows.map((row) => row.id));
   },
-  async onEvents(events) {
+  async onEvents(events, context) {
     console.info(`Fetched ${events.length} unpersisted event(s).`);
+    context?.skip("not_persisted", events.length);
   },
 });
 

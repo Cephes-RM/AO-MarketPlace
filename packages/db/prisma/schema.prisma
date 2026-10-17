@@ -8,6 +8,15 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+model IngestionState {
+  region                    String  @id
+  consecutiveFailures       Int     @default(0)
+  alerted                   Boolean @default(false)
+  consecutiveBoundaryMisses Int     @default(0)
+  boundaryAlerted            Boolean @default(false)
+  scanBoundary              BigInt?
+}
+
 model Alliance {
   id        String   @id
   name      String   
