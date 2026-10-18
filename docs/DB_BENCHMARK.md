@@ -14,13 +14,13 @@
 2. [Why a separate local DB](#2-why-a-separate-local-db)
 3. [Prerequisites](#3-prerequisites)
 4. [Quick Start](#4-quick-start)
-5. [Step-by-Step Setup](#5-step-by-step-setup)
-6. [Seeding Production-Scale Data](#6-seeding-production-scale-data)
-7. [Running the Benchmark](#7-running-the-benchmark)
-8. [Expected Results](#8-expected-results)
-9. [Verifying the Query Plans](#9-verifying-the-query-plans)
-10. [Troubleshooting](#10-troubleshooting)
-11. [Files Reference](#11-files-reference)
+5. [Summary](#summary)
+6. [Why](#why)
+7. [Benchmark Results](#benchmark-results)
+8. [Changes](#changes)
+9. [How to Test](#how-to-test)
+10. [Not in this PR (follow-ups)](#not-in-this-pr-follow-ups)
+11. [Notes for Reviewers](#notes-for-reviewers)
 
 ---
 
@@ -43,13 +43,14 @@ To measure realistic performance we run the **same Prisma schema** against a
 The benchmark measures p95 latency for the three hottest read paths and fails
 if any of them exceeds **300 ms**.
 
-Two optimizations make those SLOs achievable at scale; both are covered by
-verification queries in §9:
+Two optimizations make those SLOs achievable at scale:
 
 - **`pg_trgm` GIN trigram indexes** on the three `name` columns — enables
   `ILIKE '%substring%'` to use an index scan instead of a sequential scan.
 - **SQL aggregation** for guild / alliance member counts and fame totals —
   replaces the previous pattern of fetching every member row into the application.
+
+Verification queries and scripts for measuring these are coming in the benchmark follow-up.
 
 ---
 
@@ -70,7 +71,7 @@ verification queries in §9:
 | Tool | Version | Notes |
 |---|---|---|
 | Docker Desktop | any recent | Linux containers mode |
-| PowerShell (Windows) **or** bash (macOS / Linux) | PS 5.1+ / bash 4+ | The benchmark ships in both flavors |
+| PowerShell (Windows) **or** bash (macOS / Linux) | PS 5.1+ / bash 4+ | Benchmark scripts coming in the benchmark follow-up |
 | Node.js | ≥ 18 | For `npx prisma migrate deploy` |
 | Disk | ≥ 10 GB free | Seeded DB + indexes + WAL ≈ 3–4 GB |
 | RAM | ≥ 8 GB | The Postgres container is configured for 1–2 GB |
@@ -97,8 +98,7 @@ docker exec -it pg-tutorial psql -U postgres -c 'CREATE DATABASE "AO-db";'
 export DATABASE_URL="postgresql://postgres:mysecurepassword@localhost:5432/AO-db"
 npx prisma migrate deploy
 
-# 4. Seed 1M / 100k / 10k
-docker exec -i pg-tutorial psql -U postgres -d "AO-db" < scripts/seed-benchmark.sql
+# 4. Seed 1M / 100k / 10k (seeding script coming in the benchmark follow-up)
 
 # 5. Tune memory and restart
 docker exec -i pg-tutorial bash -c "cat >> /var/lib/postgresql/data/postgresql.conf" <<'EOF'
@@ -110,17 +110,15 @@ max_wal_size         = 4GB
 EOF
 docker restart pg-tutorial
 
-# 6. Benchmark
-./scripts/bench.sh         # macOS / Linux
-# .\scripts\bench.ps1      # Windows PowerShell
+# 6. Benchmark (benchmark runner scripts coming in the benchmark follow-up)
 ```
 
 ## Summary
 
-Adds a reproducible **local benchmarking workflow** for the three hottest read
-paths (`Player` search, guild page, alliance page), backed by two
-performance optimizations. The cloud DB currently has < 20 rows per table, so
-any query looks fast — these changes let us measure p95 latency at
+Adds the schema indexes and setup for a reproducible **local benchmarking workflow**
+for the three hottest read paths (`Player` search, guild page, alliance page), backed by
+two performance optimizations. The cloud DB currently has < 20 rows per table, so
+any query looks fast — these changes prepare us to measure p95 latency at
 production-scale volumes (1M players / 100k guilds / 10k alliances) against a
 **300 ms SLO**.
 
@@ -135,66 +133,46 @@ Two patterns work at seed scale and break at production scale:
 
 Both are addressed here.
 
-## Benchmark results (local, postgres:18, 8 clients, 30 s/endpoint)
+## Benchmark Results
 
-| Endpoint | p50 (ms) | p95 (ms) | p99 (ms) | max (ms) | SLO 300 ms |
-|----------|---------:|---------:|---------:|---------:|:----------:|
-| search   |    X.XX  |    X.XX  |    X.XX  |    X.XX  | ✅ |
-| guild    |    X.XX  |    X.XX  |    X.XX  |    X.XX  | ✅ |
-| alliance |    X.XX  |    X.XX  |    X.XX  |    X.XX  | ✅ |
-
-<paste the markdown table your script printed>
-
-### Planner verification
-
-**Player search uses the trigram index** (no `Seq Scan on Player`):
-```
-<EXPLAIN output>
-```
-
-**Guild page uses index access on memberships** (no `Seq Scan on GuildMembership`):
-```
-<EXPLAIN output>
-```
+Benchmark execution results and query planner verification are coming in the benchmark follow-up.
 
 ## Changes
 
 **Indexes** (`perf(search)` commit)
-- `prisma/migrations/20260923134430_add_trigram_indexes_for_name_search/`:
+- `packages/db/prisma/migrations/20261001120000_add_trigram_indexes_for_name_search/`:
   enables `pg_trgm`, creates GIN trigram indexes on the three `name` columns.
-- `prisma/schema.prisma`: documents the indexes with `///` comments.
+- `packages/db/prisma/schema.prisma`: declares GIN trigram indexes with `@@index`.
 
-**Benchmark harness** (`perf(bench)` commit)
-- `scripts/seed-benchmark.sql` — 1M / 100k / 10k seed with a power-law
-  member distribution.
-- `scripts/bench.ps1` (Windows) and `scripts/bench.sh` (bash) — run `pgbench`
+**Benchmark harness** (coming in the benchmark follow-up)
+- Benchmark seed script (`scripts/seed-benchmark.sql`) — 1M / 100k / 10k seed with a power-law
+  member distribution (coming in the benchmark follow-up).
+- Benchmark runner scripts (`scripts/bench.ps1` and `scripts/bench.sh`) — run `pgbench`
   inside the Postgres container, compute p50/p95/p99/max, exit non-zero on
-  SLO breach.
-- `.gitignore` — excludes `bench-results/`, `*.dump`, `.env`.
+  SLO breach (coming in the benchmark follow-up).
 
 **Documentation** (`docs(bench)` commit)
 - `docs/DB_BENCHMARK.md` — end-to-end guide for reproducing the benchmark on
   any machine.
 - `.env.example` — local-only credentials for the benchmark DB.
-- `README.md` — links to the new guide.
+- `README.md` — links to the guide.
 
 ## How to test
 
-Follow `docs/DB_BENCHMARK.md`. Expected runtime on a clean laptop: ~5 minutes
-(2 min seed, 2 min benchmark, 1 min setup).
+Follow `docs/DB_BENCHMARK.md` to run migrations against the local database:
 
 ```bash
-docker run --name pg-tutorial -e POSTGRES_PASSWORD=<password> \
-  -p <port>:<port> -d postgres:18
+docker run --name pg-tutorial -e POSTGRES_PASSWORD=mysecurepassword \
+  -p 5432:5432 -d postgres:18
 docker exec -it pg-tutorial psql -U postgres -c 'CREATE DATABASE "AO-db";'
-export DATABASE_URL="postgresql://postgres:<password>@localhost:<port>/AO-db"
+export DATABASE_URL="postgresql://postgres:mysecurepassword@localhost:5432/AO-db"
 npx prisma migrate deploy
-docker exec -i pg-tutorial psql -U postgres -d "AO-db" < scripts/seed-benchmark.sql
-./scripts/bench.sh
+# Benchmark seeding and runner scripts are coming in the benchmark follow-up
 ```
 
 ## Not in this PR (follow-ups)
 
+- Benchmark harness scripts (`scripts/seed-benchmark.sql`, `scripts/bench.sh`, `scripts/bench.ps1`) and benchmark execution results (coming in the benchmark follow-up).
 - CI job to enforce the SLO on PRs touching `prisma/` or `scripts/bench*`.
 - Docker Compose wrapper for the Postgres + pgAdmin containers.
 - npm scripts (`bench:run`, `bench:seed`) as a convenience entry point.
