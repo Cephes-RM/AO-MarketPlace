@@ -5,6 +5,17 @@ export { prisma };
 export type { LoadoutItem, PlayerLoadout } from "./loadout";
 export { parseLoadout } from "./loadout";
 export type { PlayerCombatEvent } from "./combat";
+export {
+  isConstraintError,
+  writeIngestBatch,
+  type IngestAlliance,
+  type IngestBatch,
+  type IngestGuild,
+  type IngestKillEvent,
+  type IngestParticipant,
+  type IngestPlayer,
+  type IngestResult,
+} from "./ingest";
 
 export async function getPlayerById(playerId: string) {
   if (typeof playerId !== "string" || !playerId.trim()) {

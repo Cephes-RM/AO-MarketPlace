@@ -4,8 +4,9 @@ From the repository root, create `.env` from `.env.example` and set the Neon
 `DATABASE_URL` and `DIRECT_URL`, then run `docker compose up --build`. The worker
 starts immediately and waits `WORKER_INTERVAL_MS` after each cycle finishes
 before starting the next (default: 10 minutes). `ALBION_REGION` defaults to
-`europe`. API calls use `@albion/albion-client`; existing IDs are read through
-the shared Prisma client in `@albion/db`.
+`europe`. API calls use `@albion/albion-client`; existing IDs are read and new
+events are written through the shared Prisma client in `@albion/db` (see
+"Storing events" below).
 
 The first cycle scans the available feed in pages of 51, within the limits
 below. After a scan completes and its handler succeeds, it remembers the newest
@@ -59,13 +60,44 @@ seen processed IDs, including across empty responses. Consecutive identical
 successful cycles within that retained window do not repeat the event handler;
 regular cycle logs and HTTP reads still occur. Evicted IDs may be reported again.
 
-This PLAYERS-40 handler only logs new events; it writes nothing. PLAYERS-41
-(4.7) adds database upserts. Pending work, failed IDs, and deduplication state
-are lost on restart; restart/durable idempotency is not claimed by this service.
+Pending work, failed IDs, and deduplication state are lost on restart. Events
+already stored are filtered by the existing-ID lookup, and writes are upserts,
+so reprocessing after a restart does not duplicate rows.
 
 The 4.1 measurement did not prove the feed's retention window. Events that
 disappear before being fetched cannot be recovered without knowing their IDs;
 complete coverage at the default interval is not guaranteed.
+
+## Storing events
+
+The event handler maps new events with `mapKillEvents` (`src/ingest-mapping.ts`)
+and writes them with `writeIngestBatch` from `@albion/db`:
+
+- Rows are upserted in foreign-key order: alliances, guilds, players, then each
+  kill event together with its participants in one transaction. Keys are Albion
+  IDs (participants use event ID plus player ID), so writing the same batch
+  twice leaves the data unchanged; only `updatedAt` moves.
+- Every event stores `raw`, `battleId` and `occurredAt`. `raw` is the original
+  payload, kept by the client's `includeRaw` option, with null, empty-string,
+  empty-array and empty-object values removed (including Albion's null padding
+  for empty inventory slots). Everything else stays as Albion sent it.
+- Equipment for the killer, the victim and each participant is stored as
+  `PlayerLoadout` (`main_hand`, `body`, `shoe`, ...). Empty slots are omitted.
+- Lifetime fame (`fame`, `killFame`, `deathFame`) never comes from an event.
+  Players first seen in a fight are created with 0, and later writes only
+  update their name. Guild and alliance names, and a guild's alliance, follow
+  the most recent fight.
+- Guild memberships are not written here (PLAYERS-42).
+- A row that violates a database constraint is logged with its ID and skipped,
+  and its event counts as skipped. Other database errors (connection loss,
+  pool or transaction timeouts, deadlocks) are rethrown, so the events stay
+  pending and are retried next cycle. Events without a parseable timestamp or
+  raw payload are logged and skipped before writing.
+- `writeIngestBatch` returns `{ written, skipped }` event counts for monitoring.
+
+Writes take roughly half a second per event against Neon, so the first scan of a
+full feed window (about 1,050 events) spends several minutes writing. The cycle
+timeout does not bound this database time.
 
 ## Monitoring and alerts
 
