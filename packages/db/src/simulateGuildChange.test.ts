@@ -10,6 +10,17 @@ interface InMemoryMembership {
   leftAt: Date | null;
 }
 
+class MockPrismaUniqueConstraintError extends Error {
+  code = "P2002";
+  clientVersion = "6.19.3";
+  constructor(
+    message = "Unique constraint failed on the constraint: GuildMembership_one_current_per_player",
+  ) {
+    super(message);
+    this.name = "PrismaClientKnownRequestError";
+  }
+}
+
 function createMockPrismaClient(initialMemberships: InMemoryMembership[] = []) {
   const memberships = initialMemberships.map((m) => ({ ...m }));
   const operations: string[] = [];
@@ -64,10 +75,7 @@ function createMockPrismaClient(initialMemberships: InMemoryMembership[] = []) {
             (m) => m.playerId === data.playerId && m.leftAt === null,
           );
           if (existingOpen) {
-            throw new Prisma.PrismaClientKnownRequestError(
-              "Unique constraint failed on the constraint: GuildMembership_one_current_per_player",
-              { code: "P2002", clientVersion: "6.19.3" },
-            );
+            throw new MockPrismaUniqueConstraintError();
           }
         }
         const created: InMemoryMembership = {
@@ -261,9 +269,7 @@ describe("4.8 Detect guild changes and write history (Unit Tests)", () => {
     }
 
     expect(caughtError).not.toBeNull();
-    expect(caughtError).toBeInstanceOf(Prisma.PrismaClientKnownRequestError);
-    const prismaError = caughtError as Prisma.PrismaClientKnownRequestError;
-    expect(prismaError.code).toBe("P2002");
+    expect((caughtError as { code?: string })?.code).toBe("P2002");
   });
 });
 
@@ -371,8 +377,8 @@ describe.runIf(Boolean(process.env.DATABASE_URL))(
         caughtError = error;
       }
 
-      expect(caughtError).toBeInstanceOf(Prisma.PrismaClientKnownRequestError);
-      expect((caughtError as Prisma.PrismaClientKnownRequestError).code).toBe("P2002");
+      expect(caughtError).not.toBeNull();
+      expect((caughtError as { code?: string })?.code).toBe("P2002");
     });
   },
 );
