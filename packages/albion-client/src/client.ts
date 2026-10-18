@@ -73,7 +73,7 @@ export function createAlbionClient(options: AlbionClientOptions): AlbionClient {
         pagination?: AlbionPagination,
       ): Promise<AlbionKillboardEvent[]> {
         return parseKillboardEvents(
-          await getJson(withPagination("events", pagination, { maxLimit: 51 })),
+          await getJson(recentEventsPath(pagination)),
         );
       },
 
@@ -82,7 +82,7 @@ export function createAlbionClient(options: AlbionClientOptions): AlbionClient {
         signal?: AbortSignal,
       ): Promise<AlbionBatchResult<AlbionKillboardEvent>> {
         return parseKillboardEventsTolerant(
-          await getJson(withPagination("events", pagination, { maxLimit: 51 }), signal),
+          await getJson(recentEventsPath(pagination), signal),
         );
       },
 
@@ -180,7 +180,9 @@ export function createAlbionClient(options: AlbionClientOptions): AlbionClient {
           throw toAlbionApiError(result.response, url, service);
         }
 
-        await wait(retryDelay(attempt, retry.delaysMs, result.response), init.signal);
+        const delayMs = retryDelay(attempt, retry.delaysMs, result.response);
+        options.onRetry?.({ attempt: attempt + 1, delayMs, cause: "http", status: result.response.status });
+        await wait(delayMs, init.signal);
       } catch (error) {
         init.signal?.throwIfAborted();
         if (
@@ -190,7 +192,9 @@ export function createAlbionClient(options: AlbionClientOptions): AlbionClient {
           throw error;
         }
 
-        await wait(retryDelay(attempt, retry.delaysMs), init.signal);
+        const delayMs = retryDelay(attempt, retry.delaysMs);
+        options.onRetry?.({ attempt: attempt + 1, delayMs, cause: isTimeout(error) ? "timeout" : "network" });
+        await wait(delayMs, init.signal);
       }
     }
   }
@@ -281,6 +285,12 @@ function encodeId(value: string, kind: string): string {
   }
 
   return encodeURIComponent(id);
+}
+
+function recentEventsPath(pagination?: AlbionPagination): string {
+  const path = withPagination("events", pagination, { maxLimit: 51 });
+  // Reused feed URLs can return pages cached from different snapshots.
+  return `${path}${path.includes("?") ? "&" : "?"}_=${crypto.randomUUID()}`;
 }
 
 function withPagination(

@@ -157,10 +157,17 @@ importers:
         version: 5.9.3
 
   packages/ui:
+    dependencies:
+      react:
+        specifier: '>=19'
+        version: 19.1.0
     devDependencies:
       '@albion/typescript-config':
         specifier: workspace:*
         version: link:../typescript-config
+      '@types/react':
+        specifier: ^19.2.17
+        version: 19.2.17
       typescript:
         specifier: ^5.8.0
         version: 5.9.3

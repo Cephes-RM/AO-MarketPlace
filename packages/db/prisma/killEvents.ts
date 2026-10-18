@@ -141,13 +141,15 @@ function readFighter(value: unknown): EventPlayerSeed | null {
     return null;
   }
 
+  // An event's KillFame and DeathFame cover that one fight, not the player's
+  // career, so fight-only players start at 0 until the player endpoint fills them.
   return {
     id: fighter.Id,
     name: typeof fighter.Name === "string" && fighter.Name.length > 0 ? fighter.Name : fighter.Id,
-    region: "EU",
+    region: "europe",
     fame: 0n,
-    killFame: asBigInt(fighter.KillFame),
-    deathFame: asBigInt(fighter.DeathFame),
+    killFame: 0n,
+    deathFame: 0n,
     rating: 0,
     stars: 0,
   };

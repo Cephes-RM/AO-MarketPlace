@@ -13,7 +13,8 @@
     "typecheck": "turbo typecheck",
     "lint": "turbo lint",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "check:404": "node scripts/check-real-404s.mjs"
   },
   "devDependencies": {
     "dotenv": "^17.4.2",
