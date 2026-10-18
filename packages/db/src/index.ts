@@ -58,6 +58,12 @@ export {
 } from "./search";
 
 export {
+  getAllianceById,
+  getGuildById,
+  getLandingPageData,
+} from "./marketplace";
+
+export {
   simulateGuildChange,
   recordGuildChange,
   type SimulateGuildChangeInput,
