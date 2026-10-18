@@ -42,4 +42,13 @@ export {
   type SearchResults,
 } from "./search";
 
+export {
+  simulateGuildChange,
+  recordGuildChange,
+  type SimulateGuildChangeInput,
+  type GuildTransitionType,
+  type GuildChangeResult,
+} from "./simulateGuildChange";
+
 export * from "@prisma/client";
+
