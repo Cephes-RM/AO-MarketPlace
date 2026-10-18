@@ -4,6 +4,9 @@ export interface MonitorState {
   // Older file-backed state does not contain boundary incident fields.
   consecutiveBoundaryMisses?: number;
   boundaryAlerted?: boolean;
+  lastFeedEventId?: number;
+  lastNewEventAt?: number;
+  feedStallAlerted?: boolean;
 }
 
 export interface StateStore {
@@ -28,7 +31,10 @@ export interface RunReport {
   boundaryMisses: number;
   consecutiveBoundaryMisses: number;
   boundaryAlertStatus: RunReport["alertStatus"];
-  alertType?: "failure" | "polling_interval";
+  newestFeedEventId: number | null;
+  feedIdleMs: number | null;
+  feedStallAlertStatus: RunReport["alertStatus"];
+  alertType?: "failure" | "polling_interval" | "feed_stall";
   alertStatus: "not-needed" | "sent" | "already-sent" | "unconfigured" | "failed";
 }
 
@@ -39,6 +45,7 @@ export interface RunContext {
   skip(reason: string, count?: number): void;
   retry(): void;
   boundaryMiss(): void;
+  feed(newestId?: number): void;
 }
 
 interface MonitorOptions {
@@ -84,12 +91,15 @@ export function createIngestionMonitor(options: MonitorOptions) {
       const started = now();
       let stage = "monitor_state";
       let stateRead = false;
+      let feedObserved = false;
+      let feedObservedAt = started;
       const report: RunReport = {
         event: "ingestion.run", runId: new Date(started).toISOString(), region: options.region,
         status: "success", fetched: 0, written: 0, skipped: 0, skipReasons: {},
         retries: 0, durationMs: 0, failedStage: null, error: null,
         consecutiveFailures: 0, alertStatus: "not-needed",
         boundaryMisses: 0, consecutiveBoundaryMisses: 0, boundaryAlertStatus: "not-needed",
+        newestFeedEventId: null, feedIdleMs: null, feedStallAlertStatus: "not-needed",
       };
       const add = (count: number) => {
         if (!Number.isSafeInteger(count) || count < 0) throw new Error("Metric counts must be non-negative integers");
@@ -109,6 +119,15 @@ export function createIngestionMonitor(options: MonitorOptions) {
         },
         retry: () => { report.retries += 1; },
         boundaryMiss: () => { report.boundaryMisses += 1; },
+        feed: (id) => {
+          if (id !== undefined && (!Number.isSafeInteger(id) || id <= 0)) throw new Error("Invalid feed event ID");
+          if (!feedObserved) feedObservedAt = now();
+          feedObserved = true;
+          if (id !== undefined && (report.newestFeedEventId === null || id > report.newestFeedEventId)) {
+            report.newestFeedEventId = id;
+            feedObservedAt = now();
+          }
+        },
       };
 
       try {
@@ -136,6 +155,14 @@ export function createIngestionMonitor(options: MonitorOptions) {
             pendingWrite = true;
           }
         }
+        // Observed feed activity remains real even if later work is cancelled.
+        const activityChanged = feedObserved && (state.lastNewEventAt === undefined || (report.newestFeedEventId !== null
+          && (state.lastFeedEventId === undefined || report.newestFeedEventId > state.lastFeedEventId)));
+        if (activityChanged) {
+          state = { ...state, lastNewEventAt: feedObservedAt, feedStallAlerted: false,
+            ...(report.newestFeedEventId === null ? {} : { lastFeedEventId: report.newestFeedEventId }) };
+          pendingWrite = true;
+        }
         if (report.status !== "cancelled") {
           if (report.boundaryMisses > 0) {
             state = { ...state, consecutiveBoundaryMisses: (state.consecutiveBoundaryMisses ?? 0) + 1 };
@@ -148,7 +175,7 @@ export function createIngestionMonitor(options: MonitorOptions) {
         }
         try {
           // A reset is successful only when its write succeeds; otherwise the incident continues.
-          if (stateRead && report.status !== "cancelled") {
+          if (stateRead && (report.status !== "cancelled" || activityChanged)) {
             const next = report.status === "success" ? { ...state, consecutiveFailures: 0, alerted: false } : state;
             await store.write(next);
             state = next;
@@ -166,12 +193,15 @@ export function createIngestionMonitor(options: MonitorOptions) {
         }
         report.consecutiveFailures = state.consecutiveFailures;
         report.consecutiveBoundaryMisses = state.consecutiveBoundaryMisses ?? 0;
+        report.feedIdleMs = state.lastNewEventAt === undefined ? null : Math.max(0, now() - state.lastNewEventAt);
         report.durationMs = Math.max(0, now() - started);
         for (const incident of [
           { needed: report.status === "failure" && state.consecutiveFailures >= threshold,
             flag: "alerted", status: "alertStatus", type: "failure" },
           { needed: report.status !== "cancelled" && report.boundaryMisses > 0 && report.consecutiveBoundaryMisses >= threshold,
             flag: "boundaryAlerted", status: "boundaryAlertStatus", type: "polling_interval" },
+          { needed: report.status !== "cancelled" && feedObserved && report.feedIdleMs !== null && report.feedIdleMs >= 7_200_000,
+            flag: "feedStallAlerted", status: "feedStallAlertStatus", type: "feed_stall" },
         ] as const) {
           if (!incident.needed) continue;
           if (state[incident.flag]) report[incident.status] = "already-sent";

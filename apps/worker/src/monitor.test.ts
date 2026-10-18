@@ -307,11 +307,11 @@ describe("Discord notifier", () => {
     const monitor = createIngestionMonitor({ region: "europe", failureThreshold: 1, sendAlert: notify, log: vi.fn() });
     await monitor.run(async (context) => { context.boundaryMiss(); });
     const payload = JSON.parse(String(request.mock.calls[0][1]?.body));
-    expect(payload.content).toContain("polling interval is too long");
-    expect(payload.content).toContain("Poll more often");
-    expect(payload.content).toContain("Stage: feed pagination");
-    expect(payload.content).toContain("Missing-boundary warnings this run: 1");
-    expect(payload.content).not.toContain("ingestion failed");
+    expect(payload.embeds).toHaveLength(1);
+    expect(payload.embeds[0]).toMatchObject({ title: "Ingestion coverage warning", color: 0xf59e0b });
+    expect(payload.embeds[0].description).toContain("Poll more often");
+    expect(payload.embeds[0].fields).toContainEqual({ name: "Stage", value: "Feed pagination", inline: true });
+    expect(payload.embeds[0].fields).toContainEqual({ name: "Missing boundaries this run", value: "1", inline: true });
     expect(payload.allowed_mentions).toEqual({ parse: [] });
   });
   it("sends the failed stage and metrics without triggering mentions", async () => {
@@ -320,8 +320,11 @@ describe("Discord notifier", () => {
     const report = await createIngestionMonitor({ region: "europe", log: vi.fn() }).run(fail);
     await notify(report);
     const payload = JSON.parse(String(request.mock.calls[0][1]?.body));
-    expect(payload.content).toContain("Failed stage: fetch");
-    expect(payload.content).toContain("retries: 0");
+    expect(payload.embeds[0]).toMatchObject({ title: "Ingestion run failed", color: 0xef4444,
+      timestamp: report.runId, footer: { text: "Albion ingestion monitor" } });
+    expect(payload.embeds[0].description).toContain(report.error);
+    expect(payload.embeds[0].fields).toContainEqual({ name: "Stage", value: "fetch", inline: true });
+    expect(payload.embeds[0].fields).toContainEqual(expect.objectContaining({ name: "Run metrics", value: expect.stringContaining("Retries: 0") }));
     expect(payload.allowed_mentions).toEqual({ parse: [] });
     expect(String(request.mock.calls[0][0])).toContain("wait=true");
   });

@@ -170,6 +170,7 @@ export function createWorker(options: WorkerOptions) {
         failedIds.set(id, 0);
       }
 
+      context?.feed(pageIds.size === 0 ? undefined : Math.max(...pageIds));
       for (const id of pageIds) fetchedIds.add(id);
       if (!pageWasFull || (completedScanBoundary !== undefined && pageIds.has(completedScanBoundary))) {
         scanCompleted = true;

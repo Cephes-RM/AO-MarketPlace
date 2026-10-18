@@ -10,10 +10,12 @@ it("reads legacy state and persists boundary incident fields", async () => {
     const store = fileStateStore(join(directory, "state.json"));
     await store.write({ consecutiveFailures: 2, alerted: false });
     expect(await store.read()).toEqual({ consecutiveFailures: 2, alerted: false });
-    const state = { consecutiveFailures: 0, alerted: false, consecutiveBoundaryMisses: 3, boundaryAlerted: true };
+    const state = { consecutiveFailures: 0, alerted: false, consecutiveBoundaryMisses: 3, boundaryAlerted: true,
+      lastFeedEventId: 100, lastNewEventAt: 1_792_310_400_000, feedStallAlerted: true };
     await store.write(state);
     expect(await fileStateStore(join(directory, "state.json")).read()).toEqual(state);
-    for (const invalid of [{ consecutiveBoundaryMisses: -1 }, { consecutiveBoundaryMisses: 1.5 }, { boundaryAlerted: "yes" }]) {
+    for (const invalid of [{ consecutiveBoundaryMisses: -1 }, { consecutiveBoundaryMisses: 1.5 }, { boundaryAlerted: "yes" },
+      { lastFeedEventId: -1 }, { lastNewEventAt: -1 }, { feedStallAlerted: "yes" }]) {
       await writeFile(join(directory, "state.json"), JSON.stringify({ ...state, ...invalid }));
       await expect(store.read()).rejects.toThrow("Invalid ingestion monitor state");
     }

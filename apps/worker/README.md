@@ -171,6 +171,23 @@ missed kills. Too-long polling intervals are one cause; inconsistent or delayed
 API responses can also contribute. This alert does not automatically change
 the configured interval or recover unavailable history.
 
+### Feed-stall monitoring
+
+A successful feed read records its highest observed event ID. Only an ID above
+the saved high-water mark resets `lastNewEventAt`; event timestamps and detail
+recoveries do not. This follows the worker's existing increasing-ID feed
+assumption. Repeated or empty feed responses for two hours trigger a separate
+`feed_stall` Discord alert. A feed that keeps delivering new IDs an hour late
+does not alert just because its timestamps lag behind the clock.
+
+`newestFeedEventId`, `feedIdleMs`, and `feedStallAlertStatus` are included in each
+structured run. Activity and confirmed alert delivery are saved in the existing
+state table. Arrivals observed before shutdown are saved even if the run is
+cancelled; that run sends no alerts and leaves failure and boundary counters
+unchanged. Delivery retries and incident reset work independently of other
+alerts. Failed fetches alone do not trigger this alert; they retain the existing
+execution-failure alert. A stopped process needs the separate heartbeat monitor.
+
 ### Approved live alert test (PLAYERS-49)
 
 After deployment, coordinate with the team before changing the running worker:

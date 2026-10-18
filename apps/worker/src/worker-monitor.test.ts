@@ -57,7 +57,7 @@ describe("monitored worker", () => {
       expect(sendAlert).toHaveBeenCalledTimes(cycle === 3 ? 1 : 0);
     }
     await setup(async () => response(200, []), store).worker.runCycle();
-    expect(await store.read()).toEqual({ consecutiveFailures: 0, alerted: false });
+    expect(await store.read()).toMatchObject({ consecutiveFailures: 0, alerted: false });
   });
 
   it("alerts within the first broken-URL cycle when the live-test threshold is one", async () => {

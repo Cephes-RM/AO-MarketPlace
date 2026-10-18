@@ -15,7 +15,11 @@ export function fileStateStore(path: string): StateStore {
       const state: Partial<MonitorState> = JSON.parse(text);
       if (!Number.isSafeInteger(state.consecutiveFailures) || state.consecutiveFailures! < 0 || typeof state.alerted !== "boolean"
         || (state.consecutiveBoundaryMisses !== undefined && (!Number.isSafeInteger(state.consecutiveBoundaryMisses) || state.consecutiveBoundaryMisses < 0))
-        || (state.boundaryAlerted !== undefined && typeof state.boundaryAlerted !== "boolean")) {
+        || (state.boundaryAlerted !== undefined && typeof state.boundaryAlerted !== "boolean")
+        || (state.lastFeedEventId !== undefined && (!Number.isSafeInteger(state.lastFeedEventId) || state.lastFeedEventId <= 0))
+        || (state.lastNewEventAt !== undefined && (!Number.isSafeInteger(state.lastNewEventAt) || state.lastNewEventAt < 0
+          || !Number.isFinite(new Date(state.lastNewEventAt).getTime())))
+        || (state.feedStallAlerted !== undefined && typeof state.feedStallAlerted !== "boolean")) {
         throw new Error("Invalid ingestion monitor state");
       }
       return state as MonitorState;
