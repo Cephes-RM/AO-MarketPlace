@@ -7,7 +7,8 @@ export interface LoadoutItem {
 
 /**
  * Gear worn by one player in a fight.
- * Slot names match the stored seed shape, not the Albion API's camelCase.
+ * Slot names use our stored snake_case shape (`main_hand`, `body`), not the
+ * Albion API's PascalCase (`MainHand`, `Armor`).
  */
 export interface PlayerLoadout {
   main_hand?: LoadoutItem | null;
