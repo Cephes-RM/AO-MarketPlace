@@ -5,11 +5,15 @@ import type { PlayerLoadout } from "./loadout";
 export interface IngestAlliance {
   id: string;
   name: string;
+  /** True when Albion sent no name and `name` is a stand-in (tag or ID); it never replaces a stored name. */
+  nameIsFallback: boolean;
 }
 
 export interface IngestGuild {
   id: string;
   name: string;
+  /** True when Albion sent no name and `name` is the ID; it never replaces a stored name. */
+  nameIsFallback: boolean;
   allianceId: string | null;
 }
 
@@ -115,19 +119,20 @@ export async function writeIngestBatch(batch: IngestBatch, options: IngestOption
     }
   }
 
-  for (const alliance of batch.alliances) {
-    await attempt("alliance", alliance.id, () => client.alliance.upsert({
-      where: { id: alliance.id },
-      create: alliance,
-      update: { name: alliance.name },
+  // A fallback name only fills a new row; existing rows keep whatever name they have.
+  for (const { id, name, nameIsFallback } of batch.alliances) {
+    await attempt("alliance", id, () => client.alliance.upsert({
+      where: { id },
+      create: { id, name },
+      update: nameIsFallback ? {} : { name },
     }));
   }
 
-  for (const guild of batch.guilds) {
-    await attempt("guild", guild.id, () => client.guild.upsert({
-      where: { id: guild.id },
-      create: guild,
-      update: { name: guild.name, allianceId: guild.allianceId },
+  for (const { id, name, nameIsFallback, allianceId } of batch.guilds) {
+    await attempt("guild", id, () => client.guild.upsert({
+      where: { id },
+      create: { id, name, allianceId },
+      update: nameIsFallback ? { allianceId } : { name, allianceId },
     }));
   }
 

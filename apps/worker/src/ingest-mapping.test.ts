@@ -147,10 +147,10 @@ describe("mapKillEvents", () => {
       { id: "victim", name: "VICTIM", region: "europe" },
       { id: "helper", name: "HELPER", region: "europe" },
     ]);
-    expect(batch.alliances).toEqual([{ id: "a1", name: "Alliance" }]);
+    expect(batch.alliances).toEqual([{ id: "a1", name: "Alliance", nameIsFallback: false }]);
     expect(batch.guilds).toEqual([
-      { id: "g1", name: "Guild", allianceId: "a1" },
-      { id: "g2", name: "g2", allianceId: null },
+      { id: "g1", name: "Guild", nameIsFallback: false, allianceId: "a1" },
+      { id: "g2", name: "g2", nameIsFallback: true, allianceId: null },
     ]);
     expect(batch.events[0]).toMatchObject({
       id: "7", killerId: "killer", victimId: "victim", battleId: "900", location: "Martlock",
@@ -177,9 +177,37 @@ describe("mapKillEvents", () => {
     const { batch } = mapKillEvents([newer, older], "europe");
 
     expect(batch.players.find((player) => player.id === "killer")?.name).toBe("Renamed");
-    expect(batch.guilds).toEqual([{ id: "g1", name: "New guild", allianceId: "a1" }]);
-    expect(batch.alliances).toEqual([{ id: "a1", name: "New alliance" }]);
+    expect(batch.guilds).toEqual([{ id: "g1", name: "New guild", nameIsFallback: false, allianceId: "a1" }]);
+    expect(batch.alliances).toEqual([{ id: "a1", name: "New alliance", nameIsFallback: false }]);
     expect(batch.events.map((stored) => stored.id)).toEqual(["1", "2"]);
+  });
+
+  it("flags ID and tag stand-ins so they never replace a real name", () => {
+    const named = event(1, {
+      occurredAt: "2026-09-25T12:00:00Z",
+      killer: fighter("killer", { guildId: "g1", guildName: "Real guild", allianceId: "a1", allianceName: "Real alliance" }),
+    });
+    const idsOnly = event(2, {
+      occurredAt: "2026-09-25T13:00:00Z",
+      killer: fighter("killer", { guildId: "g1", allianceId: "a1", allianceTag: "TAG" }),
+      victim: fighter("victim", { guildId: "g2", allianceId: "a2" }),
+    });
+
+    expect(mapKillEvents([idsOnly], "europe").batch).toMatchObject({
+      alliances: [
+        { id: "a1", name: "TAG", nameIsFallback: true },
+        { id: "a2", name: "a2", nameIsFallback: true },
+      ],
+      guilds: [
+        { id: "g1", name: "g1", nameIsFallback: true, allianceId: "a1" },
+        { id: "g2", name: "g2", nameIsFallback: true, allianceId: "a2" },
+      ],
+    });
+
+    // The ID-only fight is newer, so it is applied last; the real names still survive it.
+    const { batch } = mapKillEvents([idsOnly, named], "europe");
+    expect(batch.alliances).toContainEqual({ id: "a1", name: "Real alliance", nameIsFallback: false });
+    expect(batch.guilds).toContainEqual({ id: "g1", name: "Real guild", nameIsFallback: false, allianceId: "a1" });
   });
 
   it("skips events without a usable timestamp or raw payload", () => {

@@ -87,6 +87,8 @@ and writes them with `writeIngestBatch` from `@albion/db`:
   Players first seen in a fight are created with 0, and later writes only
   update their name. Guild and alliance names, and a guild's alliance, follow
   the most recent fight.
+- When a fight has no guild or alliance name, the ID (or alliance tag) only
+  names a new row; it never replaces a real name already stored.
 - Guild memberships are not written here (PLAYERS-42).
 - A row that violates a database constraint is logged with its ID and skipped,
   and its event counts as skipped. Other database errors (connection loss,

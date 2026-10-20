@@ -39,9 +39,14 @@ const worker = createWorker({
     const { batch, skipped } = mapKillEvents(events, region);
     for (const entry of skipped) console.warn("Skipped Albion event that cannot be stored.", entry);
     // Database outages throw here, so the worker keeps the events pending and retries.
+    const started = performance.now();
     const result = await writeIngestBatch(batch, { logger: console });
+    const seconds = (performance.now() - started) / 1000;
+    // Rate covers every event the writer handled, including skipped ones, since each costs write time.
+    const perSecond = seconds > 0 ? batch.events.length / seconds : 0;
     console.info(
-      `Stored ${result.written} of ${events.length} event(s); skipped ${result.skipped + skipped.length}.`,
+      `Stored ${result.written} of ${events.length} event(s); skipped ${result.skipped + skipped.length}; ` +
+        `write took ${seconds.toFixed(2)}s (${perSecond.toFixed(1)} events/s).`,
     );
   },
 });
