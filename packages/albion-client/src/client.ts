@@ -8,6 +8,7 @@ import {
   parseKillboardEventsTolerant,
   parsePlayerProfile,
   parseSearchResult,
+  withRaw,
 } from "./parsers.ts";
 import type {
   AlbionClient,
@@ -54,6 +55,7 @@ export function createAlbionClient(options: AlbionClientOptions): AlbionClient {
   );
   const request = resolveFetch(options.fetch);
   const retry = resolveRetryOptions(options.retry);
+  const includeRaw = options.includeRaw === true;
 
   return {
     gameinfo: {
@@ -73,7 +75,8 @@ export function createAlbionClient(options: AlbionClientOptions): AlbionClient {
         pagination?: AlbionPagination,
       ): Promise<AlbionKillboardEvent[]> {
         return parseKillboardEvents(
-          await getJson(withPagination("events", pagination, { maxLimit: 51 })),
+          await getJson(recentEventsPath(pagination)),
+          includeRaw,
         );
       },
 
@@ -82,46 +85,50 @@ export function createAlbionClient(options: AlbionClientOptions): AlbionClient {
         signal?: AbortSignal,
       ): Promise<AlbionBatchResult<AlbionKillboardEvent>> {
         return parseKillboardEventsTolerant(
-          await getJson(withPagination("events", pagination, { maxLimit: 51 }), signal),
+          await getJson(recentEventsPath(pagination), signal),
+          includeRaw,
         );
       },
 
       async getEvent(eventId: number, signal?: AbortSignal): Promise<AlbionKillboardEvent> {
         assertPositiveInteger(eventId, "eventId");
-        return parseKillboardEvent(await getJson(`events/${eventId}`, signal));
+        const payload = await getJson(`events/${eventId}`, signal);
+        return withRaw(parseKillboardEvent(payload), payload, includeRaw);
       },
 
       async getPlayer(playerId: string): Promise<AlbionPlayerProfile> {
-        return parsePlayerProfile(
-          await getJson(`players/${encodeId(playerId, "player")}`),
-        );
+        const payload = await getJson(`players/${encodeId(playerId, "player")}`);
+        return withRaw(parsePlayerProfile(payload), payload, includeRaw);
       },
 
       async getGuild(guildId: string) {
-        return parseGuild(await getJson(`guilds/${encodeId(guildId, "guild")}`));
+        const payload = await getJson(`guilds/${encodeId(guildId, "guild")}`);
+        return withRaw(parseGuild(payload), payload, includeRaw);
       },
 
       async getGuildMembers(guildId: string) {
         return parseGuildMembers(
           await getJson(`guilds/${encodeId(guildId, "guild")}/members`),
+          includeRaw,
         );
       },
 
       async getAlliance(allianceId: string) {
-        return parseAlliance(
-          await getJson(`alliances/${encodeId(allianceId, "alliance")}`),
-        );
+        const payload = await getJson(`alliances/${encodeId(allianceId, "alliance")}`);
+        return withRaw(parseAlliance(payload), payload, includeRaw);
       },
 
       async getPlayerKills(playerId: string): Promise<AlbionKillboardEvent[]> {
         return parseKillboardEvents(
           await getJson(`players/${encodeId(playerId, "player")}/kills`),
+          includeRaw,
         );
       },
 
       async getPlayerDeaths(playerId: string): Promise<AlbionKillboardEvent[]> {
         return parseKillboardEvents(
           await getJson(`players/${encodeId(playerId, "player")}/deaths`),
+          includeRaw,
         );
       },
     },
@@ -180,7 +187,9 @@ export function createAlbionClient(options: AlbionClientOptions): AlbionClient {
           throw toAlbionApiError(result.response, url, service);
         }
 
-        await wait(retryDelay(attempt, retry.delaysMs, result.response), init.signal);
+        const delayMs = retryDelay(attempt, retry.delaysMs, result.response);
+        options.onRetry?.({ attempt: attempt + 1, delayMs, cause: "http", status: result.response.status });
+        await wait(delayMs, init.signal);
       } catch (error) {
         init.signal?.throwIfAborted();
         if (
@@ -190,7 +199,9 @@ export function createAlbionClient(options: AlbionClientOptions): AlbionClient {
           throw error;
         }
 
-        await wait(retryDelay(attempt, retry.delaysMs), init.signal);
+        const delayMs = retryDelay(attempt, retry.delaysMs);
+        options.onRetry?.({ attempt: attempt + 1, delayMs, cause: isTimeout(error) ? "timeout" : "network" });
+        await wait(delayMs, init.signal);
       }
     }
   }
@@ -281,6 +292,12 @@ function encodeId(value: string, kind: string): string {
   }
 
   return encodeURIComponent(id);
+}
+
+function recentEventsPath(pagination?: AlbionPagination): string {
+  const path = withPagination("events", pagination, { maxLimit: 51 });
+  // Reused feed URLs can return pages cached from different snapshots.
+  return `${path}${path.includes("?") ? "&" : "?"}_=${crypto.randomUUID()}`;
 }
 
 function withPagination(

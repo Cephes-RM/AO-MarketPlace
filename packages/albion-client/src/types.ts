@@ -24,6 +24,20 @@ export interface AlbionClientOptions {
   fetch?: AlbionFetch;
   /** Uses the default timeout and retry delays when omitted. */
   retry?: AlbionRetryOptions;
+  /** Observes retries without exposing request URLs or credentials. */
+  onRetry?: (event: AlbionRetryEvent) => void;
+  /**
+   * Attach each record's original response object as `raw`, including fields
+   * these types do not model. Off by default to keep records small.
+   */
+  includeRaw?: boolean;
+}
+
+export interface AlbionRetryEvent {
+  attempt: number;
+  delayMs: number;
+  cause: "http" | "network" | "timeout";
+  status?: number;
 }
 
 export interface AlbionRetryOptions {
@@ -48,7 +62,13 @@ export interface AlbionSearchResult {
   alliances: AlbionSearchEntity[];
 }
 
-export interface AlbionPlayerProfile extends AlbionSearchPlayer {
+/** Present only when the client was created with `includeRaw: true`. */
+export interface AlbionRawPayload {
+  /** The response object exactly as Albion sent it. */
+  raw?: unknown;
+}
+
+export interface AlbionPlayerProfile extends AlbionSearchPlayer, AlbionRawPayload {
   guildId?: string;
   allianceId?: string;
   allianceName?: string;
@@ -57,7 +77,7 @@ export interface AlbionPlayerProfile extends AlbionSearchPlayer {
   fameRatio?: number;
 }
 
-export interface AlbionGuild extends AlbionSearchEntity {
+export interface AlbionGuild extends AlbionSearchEntity, AlbionRawPayload {
   founderId?: string;
   founderName?: string;
   founded?: string;
@@ -69,7 +89,7 @@ export interface AlbionGuild extends AlbionSearchEntity {
   deathFame?: number;
 }
 
-export interface AlbionAlliance extends AlbionSearchEntity {
+export interface AlbionAlliance extends AlbionSearchEntity, AlbionRawPayload {
   tag?: string;
   founderId?: string;
   founderName?: string;
@@ -117,7 +137,7 @@ export interface AlbionEquipment {
   food?: AlbionItem | null;
 }
 
-export interface AlbionKillboardEvent {
+export interface AlbionKillboardEvent extends AlbionRawPayload {
   id: number;
   occurredAt: string;
   version?: number;

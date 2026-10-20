@@ -1,5 +1,6 @@
 import { createAlbionClient, isAlbionRegion } from "@albion/albion-client";
-import { prisma } from "@albion/db";
+import { prisma, writeIngestBatch } from "@albion/db";
+import { mapKillEvents } from "./ingest-mapping.ts";
 import { createWorker } from "./worker.ts";
 
 const region = process.env.ALBION_REGION ?? "europe";
@@ -21,7 +22,7 @@ function positiveInteger(name: string, fallback: number, maximum = Number.MAX_SA
 }
 
 const worker = createWorker({
-  client: createAlbionClient({ region }).gameinfo,
+  client: createAlbionClient({ region, includeRaw: true }).gameinfo,
   intervalMs: positiveInteger("WORKER_INTERVAL_MS", 600_000, 2_147_483_647),
   cycleTimeoutMs: positiveInteger("WORKER_CYCLE_TIMEOUT_MS", 120_000, 2_147_483_647),
   maxPages: positiveInteger("WORKER_MAX_PAGES", 100),
@@ -35,7 +36,13 @@ const worker = createWorker({
     return new Set(rows.map((row) => row.id));
   },
   async onEvents(events) {
-    console.info(`Fetched ${events.length} unpersisted event(s).`);
+    const { batch, skipped } = mapKillEvents(events, region);
+    for (const entry of skipped) console.warn("Skipped Albion event that cannot be stored.", entry);
+    // Database outages throw here, so the worker keeps the events pending and retries.
+    const result = await writeIngestBatch(batch, { logger: console });
+    console.info(
+      `Stored ${result.written} of ${events.length} event(s); skipped ${result.skipped + skipped.length}.`,
+    );
   },
 });
 

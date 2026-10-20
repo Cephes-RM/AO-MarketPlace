@@ -2,7 +2,7 @@ export const players = [
   {
     id: "wgyqjCcYRoistNUSfZgYLQ",
     name: "CerberoS",
-    region: "EU",
+    region: "europe",
     fame: 1000000n,
     killFame: 275380299n,
     deathFame: 171172046n,
@@ -12,7 +12,7 @@ export const players = [
   {
     id: "KgXzr2H7RF2PcYKr1uJGQA",
     name: "cephes",
-    region: "EU",
+    region: "europe",
     fame: 1500000n,
     killFame: 97676701n,
     deathFame: 93787909n,
@@ -22,7 +22,7 @@ export const players = [
   {
     id: "5N33rMGDQH-LjQghZumvoA",
     name: "Phildas",
-    region: "EU",
+    region: "europe",
     fame: 2000000n,
     killFame: 161168899n,
     deathFame: 109544331n,
@@ -32,7 +32,7 @@ export const players = [
   {
     id: "JLz63ANFSKyZ9ufMvTx_ow",
     name: "RuskiePlacki",
-    region: "EU",
+    region: "europe",
     fame: 0n,
     killFame: 0n,
     deathFame: 0n,
@@ -42,7 +42,7 @@ export const players = [
   {
     id: "JGIl2brARpaMppTge_1ViA",
     name: "Yazdaa",
-    region: "EU",
+    region: "europe",
     fame: 0n,
     killFame: 0n,
     deathFame: 0n,
@@ -52,7 +52,7 @@ export const players = [
   {
     id: "5SZHj1-bQBWIeX_rd7wshA",
     name: "cukson",
-    region: "EU",
+    region: "europe",
     fame: 0n,
     killFame: 0n,
     deathFame: 0n,
@@ -62,7 +62,7 @@ export const players = [
   {
     id: "EtKrtOAsSOuR1bd4KrCNSQ",
     name: "gromalol",
-    region: "EU",
+    region: "europe",
     fame: 0n,
     killFame: 0n,
     deathFame: 0n,

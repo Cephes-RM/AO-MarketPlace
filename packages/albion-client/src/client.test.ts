@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import allianceFixture from "./fixtures/europe-alliance.json";
 import guildFixture from "./fixtures/europe-guild.json";
 import membersFixture from "./fixtures/europe-guild-members.json";
+import eventsFixture from "../../../fixtures/albion-api/europe/events-sample.json";
 import { AlbionApiError, createAlbionClient, isAlbionRegion } from "./index.ts";
 import type { AlbionFetch, AlbionFetchResponse } from "./types.ts";
 
@@ -423,9 +424,29 @@ describe("createAlbionClient", () => {
     await expect(
       client.gameinfo.getRecentEvents({ limit: 25, offset: 50 }),
     ).resolves.toEqual([]);
-    expect(requests).toEqual([
-      "https://example.test/api/events?limit=25&offset=50",
-    ]);
+    const url = new URL(requests[0]);
+    expect(url.origin + url.pathname).toBe("https://example.test/api/events");
+    expect(url.searchParams.get("limit")).toBe("25");
+    expect(url.searchParams.get("offset")).toBe("50");
+    expect(url.searchParams.get("_")).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
+  it("uses fresh URLs for strict and tolerant feed reads without changing detail requests", async () => {
+    const requests: URL[] = [];
+    const client = createAlbionClient({ region: "europe", fetch: async (url) => {
+      requests.push(new URL(url));
+      return jsonResponse(new URL(url).pathname.endsWith("/events/42") ? eventPayload() : []);
+    } });
+    await client.gameinfo.getRecentEvents();
+    await client.gameinfo.getRecentEventsTolerant();
+    await client.gameinfo.getRecentEventsTolerant({ limit: 51, offset: 1000 });
+    await client.gameinfo.getEvent(42);
+    const tokens = requests.slice(0, 3).map((url) => url.searchParams.get("_"));
+    expect(tokens.every((token) => typeof token === "string" && /^[0-9a-f-]{36}$/.test(token))).toBe(true);
+    expect(new Set(tokens).size).toBe(3);
+    expect(requests[2].searchParams.get("limit")).toBe("51");
+    expect(requests[2].searchParams.get("offset")).toBe("1000");
+    expect(requests[3].search).toBe("");
   });
 
   it("keeps valid events and reports malformed events through the tolerant method", async () => {
@@ -459,6 +480,52 @@ describe("createAlbionClient", () => {
         },
       ],
     });
+  });
+
+  // Real Europe events: GvGMatch and each player's Inventory are not modelled by our types.
+  it("returns the original event payload, including unmodelled fields, when includeRaw is set", async () => {
+    const [first, second] = eventsFixture as Array<Record<string, unknown>>;
+    const fetch: AlbionFetch = async (url) =>
+      jsonResponse(new URL(url).pathname.endsWith(`/events/${second.EventId}`) ? second : [first, second]);
+    const plain = createAlbionClient({ region: "europe", fetch });
+    const withRaw = createAlbionClient({ region: "europe", fetch, includeRaw: true });
+
+    const [parsed] = await plain.gameinfo.getRecentEvents();
+    expect(parsed).not.toHaveProperty("raw");
+    expect(parsed).not.toHaveProperty("gvGMatch");
+    expect(parsed.killer).not.toHaveProperty("inventory");
+
+    const tolerant = await withRaw.gameinfo.getRecentEventsTolerant();
+    expect(tolerant.failures).toEqual([]);
+    expect(tolerant.records.map((event) => event.raw)).toEqual([first, second]);
+    expect(tolerant.records[0].raw).toHaveProperty("GvGMatch");
+    expect(tolerant.records[0].raw).toHaveProperty("Killer.Inventory");
+    expect(tolerant.records[0]).toEqual({ ...parsed, raw: first });
+
+    expect((await withRaw.gameinfo.getRecentEvents()).map((event) => event.raw)).toEqual([first, second]);
+    expect((await withRaw.gameinfo.getEvent(second.EventId as number)).raw).toEqual(second);
+    expect((await withRaw.gameinfo.getPlayerKills("player-1")).map((event) => event.raw)).toEqual([first, second]);
+  });
+
+  it("returns original player, guild, member, and alliance payloads when includeRaw is set", async () => {
+    const member = membersFixture[0];
+    const fetch: AlbionFetch = async (url) => {
+      const path = new URL(url).pathname;
+      if (path.endsWith("/members")) return jsonResponse(membersFixture);
+      if (path.includes("/guilds/")) return jsonResponse(guildFixture);
+      if (path.includes("/alliances/")) return jsonResponse(allianceFixture);
+      return jsonResponse(member);
+    };
+    const client = createAlbionClient({ region: "europe", fetch, includeRaw: true });
+
+    expect((await client.gameinfo.getPlayer(member.Id)).raw).toEqual(member);
+    const guild = await client.gameinfo.getGuild(guildFixture.Id);
+    expect(guild.raw).toEqual(guildFixture);
+    expect(guild.raw).toHaveProperty("AttacksWon");
+    expect((await client.gameinfo.getGuildMembers(guildFixture.Id))[0].raw).toEqual(member);
+    expect((await client.gameinfo.getAlliance(allianceFixture.AllianceId)).raw).toEqual(allianceFixture);
+    expect(await createAlbionClient({ region: "europe", fetch }).gameinfo.getGuild(guildFixture.Id))
+      .not.toHaveProperty("raw");
   });
 
   it("rejects invalid input before making an API request", async () => {

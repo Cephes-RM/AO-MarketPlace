@@ -13,6 +13,11 @@ import type {
   AlbionSearchResult,
 } from "./types.ts";
 
+/** Attaches the untouched response object when the caller asked for it. */
+export function withRaw<T extends object>(record: T, payload: unknown, includeRaw: boolean): T {
+  return includeRaw ? { ...record, raw: payload } : record;
+}
+
 export function parseSearchResult(payload: unknown): AlbionSearchResult {
   const record = requiredRecord(payload, "search response");
 
@@ -73,8 +78,10 @@ export function parseGuild(payload: unknown): AlbionGuild {
   };
 }
 
-export function parseGuildMembers(payload: unknown): AlbionPlayerProfile[] {
-  return requiredArray(payload, "guild members").map(parsePlayerProfile);
+export function parseGuildMembers(payload: unknown, includeRaw = false): AlbionPlayerProfile[] {
+  return requiredArray(payload, "guild members").map((entry) =>
+    withRaw(parsePlayerProfile(entry), entry, includeRaw),
+  );
 }
 
 export function parseAlliance(payload: unknown): AlbionAlliance {
@@ -97,22 +104,23 @@ export function parseAlliance(payload: unknown): AlbionAlliance {
   };
 }
 
-export function parseKillboardEvents(payload: unknown): AlbionKillboardEvent[] {
+export function parseKillboardEvents(payload: unknown, includeRaw = false): AlbionKillboardEvent[] {
   return requiredArray(payload, "killboard events").map((entry) =>
-    parseKillboardEvent(entry),
+    withRaw(parseKillboardEvent(entry), entry, includeRaw),
   );
 }
 
 /** Parses a killboard batch without discarding valid events because one event is malformed. */
 export function parseKillboardEventsTolerant(
   payload: unknown,
+  includeRaw = false,
 ): AlbionBatchResult<AlbionKillboardEvent> {
   const records: AlbionKillboardEvent[] = [];
   const failures: AlbionParseFailure[] = [];
 
   requiredArray(payload, "killboard events").forEach((entry, index) => {
     try {
-      records.push(parseKillboardEvent(entry));
+      records.push(withRaw(parseKillboardEvent(entry), entry, includeRaw));
     } catch (error) {
       const eventId = eventIdOf(entry);
       failures.push({
