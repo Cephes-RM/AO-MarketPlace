@@ -93,10 +93,10 @@ function sampleBatch(): IngestBatch {
     victimLoadout: {},
   };
   return {
-    alliances: [{ id: "alliance", name: "Alliance" }],
+    alliances: [{ id: "alliance", name: "Alliance", nameIsFallback: false }],
     guilds: [
-      { id: "guild", name: "Guild", allianceId: "alliance" },
-      { id: "solo-guild", name: "Solo Guild", allianceId: null },
+      { id: "guild", name: "Guild", nameIsFallback: false, allianceId: "alliance" },
+      { id: "solo-guild", name: "Solo Guild", nameIsFallback: false, allianceId: null },
     ],
     players: [
       { id: "killer", name: "Killer", region: "europe" },
@@ -190,6 +190,29 @@ describe("writeIngestBatch", () => {
     expect(db.tables.guild.get("guild")).toEqual({ id: "guild", name: "Guild", allianceId: "alliance" });
   });
 
+  it("keeps a stored real name when an event only has the ID or tag", async () => {
+    const db = database();
+    db.tables.alliance.set("alliance", { id: "alliance", name: "Real alliance" });
+    db.tables.guild.set("guild", { id: "guild", name: "Real guild", allianceId: null });
+    const batch = sampleBatch();
+    batch.alliances = [
+      { id: "alliance", name: "TAG", nameIsFallback: true },
+      { id: "new-alliance", name: "new-alliance", nameIsFallback: true },
+    ];
+    batch.guilds = [{ id: "guild", name: "guild", nameIsFallback: true, allianceId: "alliance" }];
+
+    await writeIngestBatch(batch, { logger: logger(), client: db.client });
+
+    expect(db.tables.alliance.get("alliance")).toEqual({ id: "alliance", name: "Real alliance" });
+    expect(db.tables.guild.get("guild")).toEqual({ id: "guild", name: "Real guild", allianceId: "alliance" });
+    // With no row yet, the stand-in fills the required name until a real one arrives.
+    expect(db.tables.alliance.get("new-alliance")).toEqual({ id: "new-alliance", name: "new-alliance" });
+
+    batch.alliances = [{ id: "new-alliance", name: "Named later", nameIsFallback: false }];
+    await writeIngestBatch(batch, { logger: logger(), client: db.client });
+    expect(db.tables.alliance.get("new-alliance")).toEqual({ id: "new-alliance", name: "Named later" });
+  });
+
   it("logs and skips an event that violates a constraint, rolling back its partial rows", async () => {
     const db = database();
     const log = logger();
@@ -215,7 +238,7 @@ describe("writeIngestBatch", () => {
     const db = database();
     const log = logger();
     const batch = sampleBatch();
-    batch.guilds.push({ id: "orphan", name: "Orphan", allianceId: "missing-alliance" });
+    batch.guilds.push({ id: "orphan", name: "Orphan", nameIsFallback: false, allianceId: "missing-alliance" });
 
     await expect(writeIngestBatch(batch, { logger: log, client: db.client }))
       .resolves.toEqual({ written: 2, skipped: 0 });

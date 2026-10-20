@@ -75,6 +75,13 @@ function toBigInt(value: number | undefined) {
   return value === undefined ? null : BigInt(Math.trunc(value));
 }
 
+/** A later entry wins, except that a stand-in name never replaces a real one. */
+function keepRealName<T extends { name: string; nameIsFallback: boolean }>(previous: T | undefined, next: T): T {
+  return next.nameIsFallback && previous && !previous.nameIsFallback
+    ? { ...next, name: previous.name, nameIsFallback: false }
+    : next;
+}
+
 function toParticipant(player: AlbionEventPlayer, killerId: string): IngestParticipant {
   return {
     playerId: player.id,
@@ -89,7 +96,9 @@ function toParticipant(player: AlbionEventPlayer, killerId: string): IngestParti
 
 /**
  * Turns fetched events into rows. Events are applied oldest first so the most
- * recent fight decides player, guild and alliance names. Event fame never
+ * recent fight decides player, guild and alliance names; when a fight has no
+ * guild or alliance name, the ID or tag stand-in is flagged so it never
+ * replaces a real name, in this batch or in the database. Event fame never
  * reaches player rows; lifetime fame only comes from the player endpoint.
  */
 export function mapKillEvents(events: AlbionKillboardEvent[], region: string): MappedEvents {
@@ -115,18 +124,21 @@ export function mapKillEvents(events: AlbionKillboardEvent[], region: string): M
     const fighters = [event.killer, event.victim, ...event.participants];
     for (const fighter of fighters) {
       players.set(fighter.id, { id: fighter.id, name: fighter.name, region });
-      if (fighter.allianceId) {
-        alliances.set(fighter.allianceId, {
-          id: fighter.allianceId,
-          name: fighter.allianceName ?? fighter.allianceTag ?? fighter.allianceId,
-        });
+      const { allianceId, guildId } = fighter;
+      if (allianceId) {
+        alliances.set(allianceId, keepRealName(alliances.get(allianceId), {
+          id: allianceId,
+          name: fighter.allianceName ?? fighter.allianceTag ?? allianceId,
+          nameIsFallback: fighter.allianceName === undefined,
+        }));
       }
-      if (fighter.guildId) {
-        guilds.set(fighter.guildId, {
-          id: fighter.guildId,
-          name: fighter.guildName ?? fighter.guildId,
-          allianceId: fighter.allianceId ?? null,
-        });
+      if (guildId) {
+        guilds.set(guildId, keepRealName(guilds.get(guildId), {
+          id: guildId,
+          name: fighter.guildName ?? guildId,
+          nameIsFallback: fighter.guildName === undefined,
+          allianceId: allianceId ?? null,
+        }));
       }
     }
 
