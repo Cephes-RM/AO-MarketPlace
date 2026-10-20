@@ -17,6 +17,7 @@ export type {
   AlbionParseFailure,
   AlbionPagination,
   AlbionPlayerProfile,
+  AlbionRawPayload,
   AlbionRegion,
   AlbionRetryOptions,
   AlbionRetryEvent,

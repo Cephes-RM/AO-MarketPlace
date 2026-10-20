@@ -8,6 +8,7 @@ import {
   parseKillboardEventsTolerant,
   parsePlayerProfile,
   parseSearchResult,
+  withRaw,
 } from "./parsers.ts";
 import type {
   AlbionClient,
@@ -54,6 +55,7 @@ export function createAlbionClient(options: AlbionClientOptions): AlbionClient {
   );
   const request = resolveFetch(options.fetch);
   const retry = resolveRetryOptions(options.retry);
+  const includeRaw = options.includeRaw === true;
 
   return {
     gameinfo: {
@@ -74,6 +76,7 @@ export function createAlbionClient(options: AlbionClientOptions): AlbionClient {
       ): Promise<AlbionKillboardEvent[]> {
         return parseKillboardEvents(
           await getJson(recentEventsPath(pagination)),
+          includeRaw,
         );
       },
 
@@ -83,45 +86,49 @@ export function createAlbionClient(options: AlbionClientOptions): AlbionClient {
       ): Promise<AlbionBatchResult<AlbionKillboardEvent>> {
         return parseKillboardEventsTolerant(
           await getJson(recentEventsPath(pagination), signal),
+          includeRaw,
         );
       },
 
       async getEvent(eventId: number, signal?: AbortSignal): Promise<AlbionKillboardEvent> {
         assertPositiveInteger(eventId, "eventId");
-        return parseKillboardEvent(await getJson(`events/${eventId}`, signal));
+        const payload = await getJson(`events/${eventId}`, signal);
+        return withRaw(parseKillboardEvent(payload), payload, includeRaw);
       },
 
       async getPlayer(playerId: string): Promise<AlbionPlayerProfile> {
-        return parsePlayerProfile(
-          await getJson(`players/${encodeId(playerId, "player")}`),
-        );
+        const payload = await getJson(`players/${encodeId(playerId, "player")}`);
+        return withRaw(parsePlayerProfile(payload), payload, includeRaw);
       },
 
       async getGuild(guildId: string) {
-        return parseGuild(await getJson(`guilds/${encodeId(guildId, "guild")}`));
+        const payload = await getJson(`guilds/${encodeId(guildId, "guild")}`);
+        return withRaw(parseGuild(payload), payload, includeRaw);
       },
 
       async getGuildMembers(guildId: string) {
         return parseGuildMembers(
           await getJson(`guilds/${encodeId(guildId, "guild")}/members`),
+          includeRaw,
         );
       },
 
       async getAlliance(allianceId: string) {
-        return parseAlliance(
-          await getJson(`alliances/${encodeId(allianceId, "alliance")}`),
-        );
+        const payload = await getJson(`alliances/${encodeId(allianceId, "alliance")}`);
+        return withRaw(parseAlliance(payload), payload, includeRaw);
       },
 
       async getPlayerKills(playerId: string): Promise<AlbionKillboardEvent[]> {
         return parseKillboardEvents(
           await getJson(`players/${encodeId(playerId, "player")}/kills`),
+          includeRaw,
         );
       },
 
       async getPlayerDeaths(playerId: string): Promise<AlbionKillboardEvent[]> {
         return parseKillboardEvents(
           await getJson(`players/${encodeId(playerId, "player")}/deaths`),
+          includeRaw,
         );
       },
     },

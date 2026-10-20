@@ -48,6 +48,17 @@ to avoid reusing inconsistently cached page URLs. This improves freshness but
 does not freeze the feed: moving offset pagination can still overlap or omit
 records. Detail requests, player endpoints and item icons are unchanged.
 
+To keep each record's original response object, including fields these types
+do not model, create the client with `includeRaw: true`. Events, player, guild,
+guild member and alliance records then carry it as `raw`. Method signatures are
+unchanged, and `raw` is absent by default:
+
+```ts
+const albion = createAlbionClient({ region: "europe", includeRaw: true });
+const event = await albion.gameinfo.getEvent(123456);
+event.raw; // the event exactly as Albion sent it
+```
+
 Killboard events include the killer, victim, average item power, and equipment.
 Empty equipment slots can be `null` or missing.
 The Europe Gameinfo player-kills and player-deaths endpoints currently return
