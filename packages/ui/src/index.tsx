@@ -121,3 +121,6 @@ export function ErrorState({
     </div>
   );
 }
+
+export { designTokenGroups } from "./tokens";
+export type { DesignToken, DesignTokenGroup } from "./tokens";

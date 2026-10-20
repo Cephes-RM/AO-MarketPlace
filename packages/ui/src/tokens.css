@@ -1,0 +1,180 @@
+/* PLAYERS-77: shared tokens preserve the existing site values. */
+:root {
+  /* Color channels */
+  --background-rgb: 16, 18, 15;
+  --accent-rgb: 210, 173, 105;
+  --border-rgb: 229, 223, 203;
+  --danger-rgb: 210, 135, 105;
+  --success-rgb: 143, 183, 110;
+  --white-rgb: 255, 255, 255;
+  --black-rgb: 0, 0, 0;
+
+  /* Semantic colors */
+  --background: rgb(var(--background-rgb));
+  --foreground: #f4f1e8;
+  --muted: #a5a99d;
+  --line: rgba(var(--border-rgb), 0.14);
+  --surface: #191c17;
+  --accent: rgb(var(--accent-rgb));
+  --color-rank: #73786e;
+  --color-on-accent: #151610;
+  --color-caption: #82877b;
+  --color-kill-text: #b9d6a2;
+  --color-death-text: #e2aaa0;
+  --color-row-hover: rgba(var(--white-rgb), .025);
+  --color-error-border: rgba(var(--danger-rgb), .36);
+  --color-accent-border-soft: rgba(var(--accent-rgb), .27);
+  --color-accent-border: rgba(var(--accent-rgb), .55);
+  --color-accent-glow: rgba(var(--accent-rgb), .14);
+  --color-accent-ink: rgba(var(--accent-rgb), .8);
+  --color-accent-wash: rgba(var(--accent-rgb), .09);
+  --color-kill-surface: rgba(var(--success-rgb), .12);
+  --color-death-surface: rgba(var(--danger-rgb), .12);
+  --color-equipment-surface: rgba(var(--black-rgb), .09);
+  --color-header-surface: rgba(var(--background-rgb), .92);
+  --color-shadow: rgba(var(--black-rgb), .4);
+  --color-search-active: rgba(var(--accent-rgb), .12);
+
+  /* Font families */
+  --font-family-body: Arial, Helvetica, sans-serif;
+  --font-family-heading: Georgia, serif;
+  --font-family-display: Georgia, "Times New Roman", serif;
+  --font-family-mono: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+
+  /* Type scale */
+  --text-9: 9px;
+  --text-10: 10px;
+  --text-11: 11px;
+  --text-12: 12px;
+  --text-13: 13px;
+  --text-14: 14px;
+  --text-15: 15px;
+  --text-16: 16px;
+  --text-18: 18px;
+  --text-20: 20px;
+  --text-21: 21px;
+  --text-24: 24px;
+  --text-25: 25px;
+  --text-26: 26px;
+  --text-38: 38px;
+  --text-40: 40px;
+  --text-44: 44px;
+  --text-62: 62px;
+  --text-76: 76px;
+  --text-84: 84px;
+  --text-120: 120px;
+  --text-section: clamp(var(--text-26), 3vw, var(--text-38));
+  --text-profile: clamp(var(--text-40), 6vw, var(--text-62));
+  --text-hero: clamp(var(--text-44), 6vw, var(--text-76));
+
+  /* Font weights */
+  --weight-400: 400;
+  --weight-500: 500;
+  --weight-600: 600;
+  --weight-700: 700;
+
+  /* Line heights */
+  --leading-body: 1.7;
+  --leading-state: 1.6;
+  --leading-compact: 1.5;
+  --leading-display: 1.02;
+
+  /* Letter spacing */
+  --tracking-eyebrow: .2em;
+  --tracking-caption: .22em;
+  --tracking-section: -.025em;
+  --tracking-heading: -.04em;
+  --tracking-badge: .1em;
+  --tracking-brand: .02em;
+  --tracking-search: .12em;
+
+  /* Spacing scale */
+  --space-0: 0;
+  --space-1: 1px;
+  --space-3: 3px;
+  --space-4: 4px;
+  --space-5: 5px;
+  --space-6: 6px;
+  --space-7: 7px;
+  --space-8: 8px;
+  --space-9: 9px;
+  --space-10: 10px;
+  --space-11: 11px;
+  --space-12: 12px;
+  --space-13: 13px;
+  --space-14: 14px;
+  --space-15: 15px;
+  --space-16: 16px;
+  --space-17: 17px;
+  --space-18: 18px;
+  --space-19: 19px;
+  --space-20: 20px;
+  --space-21: 21px;
+  --space-22: 22px;
+  --space-23: 23px;
+  --space-24: 24px;
+  --space-25: 25px;
+  --space-26: 26px;
+  --space-28: 28px;
+  --space-30: 30px;
+  --space-35: 35px;
+  --space-36: 36px;
+  --space-40: 40px;
+  --space-42: 42px;
+  --space-45: 45px;
+  --space-55: 55px;
+  --space-65: 65px;
+  --space-68: 68px;
+  --space-70: 70px;
+  --space-76: 76px;
+  --space-80: 80px;
+
+  /* Layout dimensions */
+  --size-1: 1px;
+  --size-14: 14px;
+  --size-24: 24px;
+  --size-28: 28px;
+  --size-30: 30px;
+  --size-32: 32px;
+  --size-34: 34px;
+  --size-36: 36px;
+  --size-42: 42px;
+  --size-48: 48px;
+  --size-62: 62px;
+  --size-64: 64px;
+  --size-74: 74px;
+  --size-76: 76px;
+  --size-100: 100px;
+  --size-114: 114px;
+  --size-125: 125px;
+  --size-140: 140px;
+  --size-145: 145px;
+  --size-205: 205px;
+  --size-220: 220px;
+  --size-245: 245px;
+  --size-270: 270px;
+  --size-310: 310px;
+  --size-380: 380px;
+  --size-420: 420px;
+  --size-460: 460px;
+  --size-490: 490px;
+  --size-510: 510px;
+  --size-570: 570px;
+  --size-650: 650px;
+  --size-1160: 1160px;
+
+  /* Borders and focus */
+  --border-width: 1px;
+  --focus-width: 2px;
+  --border-style-dashed: dashed;
+  --border-default: var(--border-width) solid var(--line);
+  --border-accent-soft: var(--border-width) solid var(--color-accent-border-soft);
+  --border-accent: var(--border-width) solid var(--color-accent-border);
+  --border-dashed: var(--border-width) var(--border-style-dashed) var(--line);
+  --outline-focus: var(--focus-width) solid var(--accent);
+  --radius-circle: 50%;
+
+  /* Shadows */
+  --shadow-search: 0 var(--space-18) var(--space-40) var(--color-shadow);
+
+}
