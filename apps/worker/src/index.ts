@@ -23,8 +23,8 @@ function positiveInteger(name: string, fallback: number, maximum = Number.MAX_SA
 
 const worker = createWorker({
   client: createAlbionClient({ region, includeRaw: true }).gameinfo,
-  intervalMs: positiveInteger("WORKER_INTERVAL_MS", 600_000, 2_147_483_647),
-  cycleTimeoutMs: positiveInteger("WORKER_CYCLE_TIMEOUT_MS", 120_000, 2_147_483_647),
+  intervalMs: positiveInteger("WORKER_INTERVAL_MS", 120_000, 2_147_483_647),
+  cycleTimeoutMs: positiveInteger("WORKER_CYCLE_TIMEOUT_MS", 300_000, 2_147_483_647),
   maxPages: positiveInteger("WORKER_MAX_PAGES", 100),
   logger: console,
   async findExistingIds(ids) {

@@ -1,0 +1,32 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: worker
+      POSTGRES_PASSWORD: local-test-only
+      POSTGRES_DB: albion_worker_local
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U worker -d albion_worker_local"]
+      interval: 2s
+      timeout: 5s
+      retries: 20
+
+  worker:
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://worker:local-test-only@postgres:5432/albion_worker_local
+      DIRECT_URL: postgresql://worker:local-test-only@postgres:5432/albion_worker_local
+      ALBION_REGION: europe
+      WORKER_INTERVAL_MS: "120000"
+      WORKER_MAX_PAGES: "100"
+      WORKER_CYCLE_TIMEOUT_MS: "300000"
+      DISCORD_WEBHOOK_URL: ""
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["sh", "-c", "pnpm --filter @albion/db exec prisma migrate deploy && exec node --import tsx apps/worker/src/index.ts"]
+    stop_grace_period: 30s

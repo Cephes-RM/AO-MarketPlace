@@ -3,7 +3,7 @@
 From the repository root, create `.env` from `.env.example` and set the Neon
 `DATABASE_URL` and `DIRECT_URL`, then run `docker compose up --build`. The worker
 starts immediately and waits `WORKER_INTERVAL_MS` after each cycle finishes
-before starting the next (default: 10 minutes). `ALBION_REGION` defaults to
+before starting the next (default: 2 minutes). `ALBION_REGION` defaults to
 `europe`. API calls use `@albion/albion-client`; existing IDs are read and new
 events are written through the shared Prisma client in `@albion/db` (see
 "Storing events" below).
@@ -32,10 +32,10 @@ when it is full. This completes the accessible feed window, not all event
 history. The final page overlaps the
 previous page; event IDs are deduplicated before handling.
 
-`WORKER_CYCLE_TIMEOUT_MS` defaults to 120000
+`WORKER_CYCLE_TIMEOUT_MS` defaults to 300000 (5 minutes)
 and bounds API work, including retries and response bodies. Half of that budget
-is reserved for scanning and the remainder allows recovery to progress even
-when scanning times out. Page, time, and state limits produce warnings about
+is reserved for scanning (150 seconds) and the remainder allows recovery to
+progress even when scanning times out. Page, time, and state limits produce warnings about
 incomplete work. Each scan starts at offset zero; these limits can prevent
 older history from being reached. The time budget does not cancel database
 queries or the handler; database connection/query timeouts must be configured
@@ -98,6 +98,45 @@ and writes them with `writeIngestBatch` from `@albion/db`:
 Writes take roughly half a second per event against Neon, so the first scan of a
 full feed window (about 1,050 events) spends several minutes writing. The cycle
 timeout does not bound this database time.
+
+## Local deployment check
+
+Run the worker and temporary PostgreSQL on the same local machine:
+
+```sh
+docker compose -p albion-worker-local -f compose.local.yaml up --build -d
+docker compose -p albion-worker-local -f compose.local.yaml logs -f worker
+```
+
+This standalone configuration supplies its own database settings rather than
+passing your `.env` values to containers. It does not connect to Neon or send
+Discord messages. It sets `WORKER_INTERVAL_MS=120000` and
+`WORKER_CYCLE_TIMEOUT_MS=300000`, and applies migrations only
+to the temporary database. PostgreSQL has no published port; its data lives in
+memory and is lost when the container stops. Do not use this database for
+production. The worker waits two minutes after each cycle finishes, so request
+and handler time add to the time between cycle starts.
+
+For the deployment acceptance check, keep it running for at least 24 hours and
+verify there are no `Previous scan boundary was not found` warnings. Save the
+logs before removing the test containers:
+
+```sh
+docker compose -p albion-worker-local -f compose.local.yaml logs --no-color --timestamps worker > /tmp/albion-worker-local.log
+docker compose -p albion-worker-local -f compose.local.yaml down
+```
+
+Measure actual write throughput over the complete write batch, including
+entity and participant writes, and log event
+count, elapsed write time and events/second; the proposed target is above
+10 events/second. Fetch speed or repeated writes of an existing batch are not
+evidence of sustained ingestion throughput.
+
+Set `WORKER_INTERVAL_MS=120000` and `WORKER_CYCLE_TIMEOUT_MS=300000` in the
+deployed service too: changing the default does not override an existing
+platform variable. This local setup does not
+change Railway. The new 24-hour coverage check is separate from the original
+72-hour deployment requirement.
 
 ## Monitoring and alerts
 
