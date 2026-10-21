@@ -1,187 +1,231 @@
 # Local Database Benchmarking
 
-> Reproduce the performance benchmarks for `Player`, `Guild`, and `Alliance` queries
-> on a local Postgres instance seeded with production-scale data.
+This guide describes how to inspect and benchmark the performance of the `Player`, `Guild`, and `Alliance` queries in AO-MarketPlace using a local PostgreSQL database.
 
-**Audience:** any developer who wants to verify the SLOs on their own machine.
-**SLO:** p95 latency < 300 ms for player search, guild page, and alliance page.
+The goal is to evaluate performance under realistic data volumes without affecting shared development, staging, or production databases.
 
----
+## 1. Performance Targets
 
-## Table of Contents
+The target is **p95 latency below 300 ms** for each of the following read paths:
 
-1. [Overview](#1-overview)
-2. [Why a separate local DB](#2-why-a-separate-local-db)
-3. [Prerequisites](#3-prerequisites)
-4. [Quick Start](#4-quick-start)
-5. [Summary](#summary)
-6. [Why](#why)
-7. [Benchmark Results](#benchmark-results)
-8. [Changes](#changes)
-9. [How to Test](#how-to-test)
-10. [Not in this PR (follow-ups)](#not-in-this-pr-follow-ups)
-11. [Notes for Reviewers](#notes-for-reviewers)
+- Player name search.
+- Guild page, including member counts and fame totals.
+- Alliance page, including member counts and fame totals.
 
----
+These targets must be verified against representative data and workloads. They should not be considered achieved until repeatable benchmark measurements confirm them.
 
-## 1. Overview
+## 2. Why Use a Local Database?
 
-AO-MarketPlace's cloud database (Neon) contains < 20 rows per table — enough to run
-the app, far too few to measure database performance. Any query looks fast when
-there are 12 rows.
+The cloud development database may contain too few records to represent production workloads accurately. Small datasets can hide expensive queries and make inefficient operations appear fast.
 
-To measure realistic performance we run the **same Prisma schema** against a
-**local Postgres** populated with:
+A dedicated local database allows developers to:
 
-| Table | Rows | Notes |
-|---|---|---|
-| `Alliance` | 10,000 | 10 guilds each |
-| `Guild` | 100,000 | |
-| `Player` | 1,000,000 | |
-| `GuildMembership` | 1,000,000 | one *active* row per player |
+- Test with large datasets.
+- Inspect PostgreSQL query execution plans.
+- Evaluate index usage and aggregation queries.
+- Compare performance under consistent test conditions.
+- Avoid loading shared databases with synthetic benchmark data.
 
-The benchmark measures p95 latency for the three hottest read paths and fails
-if any of them exceeds **300 ms**.
-
-Two optimizations make those SLOs achievable at scale:
-
-- **`pg_trgm` GIN trigram indexes** on the three `name` columns — enables
-  `ILIKE '%substring%'` to use an index scan instead of a sequential scan.
-- **SQL aggregation** for guild / alliance member counts and fame totals —
-  replaces the previous pattern of fetching every member row into the application.
-
-Verification queries and scripts for measuring these are coming in the benchmark follow-up.
-
----
-
-## 2. Why a separate local DB
-
-- The cloud DB (Neon) is shared and should never be loaded with millions of
-  synthetic rows.
-- Benchmarking is destructive (`TRUNCATE`, `VACUUM`, `DROP INDEX`). Doing it
-  locally means zero risk to staging or production.
-- Numbers are comparable across the team only when everyone uses the same
-  schema, the same seed script, and the same Postgres major version — which a
-  local Docker setup guarantees.
-
----
+Run destructive operations, including bulk data generation, `TRUNCATE`, and index changes, only against the dedicated benchmark database.
 
 ## 3. Prerequisites
 
-| Tool | Version | Notes |
-|---|---|---|
-| Docker Desktop | any recent | Linux containers mode |
-| PowerShell (Windows) **or** bash (macOS / Linux) | PS 5.1+ / bash 4+ | Benchmark scripts coming in the benchmark follow-up |
-| Node.js | ≥ 18 | For `npx prisma migrate deploy` |
-| Disk | ≥ 10 GB free | Seeded DB + indexes + WAL ≈ 3–4 GB |
-| RAM | ≥ 8 GB | The Postgres container is configured for 1–2 GB |
+| Requirement | Purpose |
+|---|---|
+| Docker Desktop | Runs PostgreSQL locally |
+| Node.js and npm | Runs Prisma commands |
+| Project dependencies | Provides the Prisma schema and client |
+| Sufficient disk space and RAM | Supports the database, indexes, and test data |
 
-No local Postgres install is needed. `pgbench` ships inside the official
-`postgres` image.
+Use a PostgreSQL version compatible with the project's database configuration. For meaningful comparisons, keep the database version and test environment consistent.
 
----
+## 4. Start PostgreSQL
 
-## 4. Quick Start
-
-For developers who already trust the steps below and just want to run it:
+Start a dedicated PostgreSQL container:
 
 ```bash
-# 1. Start Postgres
-docker run --name pg-tutorial \
-  -e POSTGRES_PASSWORD=mysecurepassword \
-  -p 5432:5432 -d postgres:18
-
-# 2. Create the benchmark DB
-docker exec -it pg-tutorial psql -U postgres -c 'CREATE DATABASE "AO-db";'
-
-# 3. Point Prisma at it and apply migrations
-export DATABASE_URL="postgresql://postgres:mysecurepassword@localhost:5432/AO-db"
-npx prisma migrate deploy
-
-# 4. Seed 1M / 100k / 10k (seeding script coming in the benchmark follow-up)
-
-# 5. Tune memory and restart
-docker exec -i pg-tutorial bash -c "cat >> /var/lib/postgresql/data/postgresql.conf" <<'EOF'
-shared_buffers       = 1GB
-work_mem             = 64MB
-maintenance_work_mem = 512MB
-effective_cache_size = 2GB
-max_wal_size         = 4GB
-EOF
-docker restart pg-tutorial
-
-# 6. Benchmark (benchmark runner scripts coming in the benchmark follow-up)
+docker run --name ao-marketplace-benchmark \
+  -e POSTGRES_USER=postgres \
+  -e POSTGRES_PASSWORD=benchmark_password \
+  -p 5433:5432 \
+  -d postgres:18
 ```
 
-## Summary
+Port `5433` avoids conflicts with a local PostgreSQL instance using port `5432`.
 
-Adds the schema indexes and setup for a reproducible **local benchmarking workflow**
-for the three hottest read paths (`Player` search, guild page, alliance page), backed by
-two performance optimizations. The cloud DB currently has < 20 rows per table, so
-any query looks fast — these changes prepare us to measure p95 latency at
-production-scale volumes (1M players / 100k guilds / 10k alliances) against a
-**300 ms SLO**.
-
-## Why
-
-Two patterns work at seed scale and break at production scale:
-
-1. **Substring search on names** (`ILIKE '%foo%'`) cannot use a B-tree index,
-   so it degrades to a sequential scan.
-2. **Guild / alliance landing pages** fetch every current member row into the
-   application just to compute `count(*)` and `sum(fame)`.
-
-Both are addressed here.
-
-## Benchmark Results
-
-Benchmark execution results and query planner verification are coming in the benchmark follow-up.
-
-## Changes
-
-**Indexes** (`perf(search)` commit)
-- `packages/db/prisma/migrations/20261001120000_add_trigram_indexes_for_name_search/`:
-  enables `pg_trgm`, creates GIN trigram indexes on the three `name` columns.
-- `packages/db/prisma/schema.prisma`: declares GIN trigram indexes with `@@index`.
-
-**Benchmark harness** (coming in the benchmark follow-up)
-- Benchmark seed script (`scripts/seed-benchmark.sql`) — 1M / 100k / 10k seed with a power-law
-  member distribution (coming in the benchmark follow-up).
-- Benchmark runner scripts (`scripts/bench.ps1` and `scripts/bench.sh`) — run `pgbench`
-  inside the Postgres container, compute p50/p95/p99/max, exit non-zero on
-  SLO breach (coming in the benchmark follow-up).
-
-**Documentation** (`docs(bench)` commit)
-- `docs/DB_BENCHMARK.md` — end-to-end guide for reproducing the benchmark on
-  any machine.
-- `.env.example` — local-only credentials for the benchmark DB.
-- `README.md` — links to the guide.
-
-## How to test
-
-Follow `docs/DB_BENCHMARK.md` to run migrations against the local database:
+Create the benchmark database:
 
 ```bash
-docker run --name pg-tutorial -e POSTGRES_PASSWORD=mysecurepassword \
-  -p 5432:5432 -d postgres:18
-docker exec -it pg-tutorial psql -U postgres -c 'CREATE DATABASE "AO-db";'
-export DATABASE_URL="postgresql://postgres:mysecurepassword@localhost:5432/AO-db"
-npx prisma migrate deploy
-# Benchmark seeding and runner scripts are coming in the benchmark follow-up
+docker exec ao-marketplace-benchmark \
+  psql -U postgres \
+  -c 'CREATE DATABASE "AO-db";'
 ```
 
-## Not in this PR (follow-ups)
+Configure the connection string for your local benchmark environment:
 
-- Benchmark harness scripts (`scripts/seed-benchmark.sql`, `scripts/bench.sh`, `scripts/bench.ps1`) and benchmark execution results (coming in the benchmark follow-up).
-- CI job to enforce the SLO on PRs touching `prisma/` or `scripts/bench*`.
-- Docker Compose wrapper for the Postgres + pgAdmin containers.
-- npm scripts (`bench:run`, `bench:seed`) as a convenience entry point.
+```text
+postgresql://postgres:benchmark_password@localhost:5433/AO-db
+```
 
-## Notes for reviewers
+Set the appropriate Prisma database environment variables to use this connection. If the project uses both `DATABASE_URL` and `DIRECT_URL`, configure both for the local benchmark database.
 
-- The benchmark DB is a **local-only Docker container** with synthetic data.
-  It never connects to Neon, staging, or production.
-- Credentials in `.env.example` are the *documented defaults* for that local
-  container; they match no real environment.
-- The `pg_trgm` extension requires PostgreSQL ≥ 9.1 and is bundled with the
-  official `postgres` image — no extra install step.
+**Important:** never use a shared or production database for benchmark data or destructive testing.
+
+## 5. Apply Database Migrations
+
+From the project workspace containing the relevant Prisma schema, apply the migrations:
+
+```bash
+npx prisma migrate deploy
+```
+
+Use the repository's configured Prisma schema path and package scripts if they differ from this example.
+
+Verify that the required tables and indexes exist. For example, in `psql`:
+
+```sql
+\d "Player"
+\d "Guild"
+\d "Alliance"
+```
+
+The name-search optimization uses PostgreSQL's `pg_trgm` extension and GIN trigram indexes on the `name` columns of `Player`, `Guild`, and `Alliance`.
+
+Verify that the extension is enabled:
+
+```sql
+SELECT extname
+FROM pg_extension
+WHERE extname = 'pg_trgm';
+```
+
+## 6. Prepare Representative Data
+
+Performance measurements should use enough records to expose bottlenecks that are not visible in a small development database.
+
+An example target dataset is:
+
+| Table | Target row count |
+|---|---:|
+| `Alliance` | 10,000 |
+| `Guild` | 100,000 |
+| `Player` | 1,000,000 |
+| `GuildMembership` | 1,000,000 or more, depending on membership history |
+
+These figures are example benchmark targets, not the current database row counts.
+
+The dataset should reflect realistic name distributions, membership relationships, fame values, and active versus historical memberships.
+
+Before running the benchmark, ensure the dataset has been generated and that the required indexes and migrations are present. If an automated seed process is unavailable, document the data-generation method used for the test so results can be reproduced.
+
+## 7. Inspect Name-Search Query Plans
+
+Player, guild, and alliance name searches may use substring matching such as `ILIKE '%foo%'`. A conventional B-tree index generally cannot efficiently support arbitrary leading-wildcard searches. Trigram indexes can help PostgreSQL accelerate these queries.
+
+Inspect the player search query:
+
+```sql
+EXPLAIN (ANALYZE, BUFFERS)
+SELECT *
+FROM "Player"
+WHERE name ILIKE '%cer%';
+```
+
+Inspect guild search:
+
+```sql
+EXPLAIN (ANALYZE, BUFFERS)
+SELECT *
+FROM "Guild"
+WHERE name ILIKE '%atlas%';
+```
+
+Inspect alliance search:
+
+```sql
+EXPLAIN (ANALYZE, BUFFERS)
+SELECT *
+FROM "Alliance"
+WHERE name ILIKE '%atlas%';
+```
+
+Review the query plan for:
+
+- Whether PostgreSQL uses the expected index.
+- Execution time.
+- Rows scanned and rows returned.
+- Buffer hits and disk reads.
+
+Test with multiple search terms, including terms that match few rows and terms that match many rows.
+
+A sequential scan does not necessarily indicate a problem. PostgreSQL may choose one when the table is small or the search matches a large proportion of the table.
+
+## 8. Inspect Guild and Alliance Aggregations
+
+Guild and alliance pages should calculate member counts and fame totals in SQL rather than retrieving every member record into application memory solely for aggregation.
+
+Use `EXPLAIN (ANALYZE, BUFFERS)` to inspect the actual queries used by the application for guild and alliance pages.
+
+Verify that:
+
+- Member counts follow the intended active-membership rules.
+- Fame totals match the application's business logic.
+- Historical memberships are handled correctly.
+- The application does not unnecessarily fetch every member row just to calculate totals.
+- Query performance remains acceptable for guilds and alliances with many members.
+
+Check both query performance and result correctness.
+
+## 9. Measure Latency
+
+`EXPLAIN ANALYZE` helps diagnose database query performance, but its execution time is not the same as end-to-end application latency.
+
+To evaluate the p95 target:
+
+1. Prepare a representative dataset and verify the database schema.
+2. Execute each relevant read path repeatedly under a consistent workload.
+3. Record individual latency measurements.
+4. Calculate p50, p95, p99, and maximum latency.
+5. Record the dataset size, PostgreSQL version, hardware, and test conditions.
+6. Compare the p95 latency of each read path with the 300 ms target.
+
+Use application-level measurements when evaluating the complete player-search, guild-page, and alliance-page experience. Keep database-only measurements separate from endpoint latency.
+
+## 10. Record Results
+
+Record actual measurements in a table such as the following:
+
+| Read path | p50 | p95 | p99 | Target |
+|---|---:|---:|---:|---:|
+| Player search | Not measured | Not measured | Not measured | < 300 ms |
+| Guild page | Not measured | Not measured | Not measured | < 300 ms |
+| Alliance page | Not measured | Not measured | Not measured | < 300 ms |
+
+Replace the placeholders with measured values after running the benchmark. Do not treat the target as achieved without repeatable measurements.
+
+## 11. Troubleshooting
+
+**PostgreSQL does not use a trigram index**
+
+- Confirm that `pg_trgm` is enabled.
+- Confirm that the GIN index exists on the correct column.
+- Run `ANALYZE` after loading or significantly changing the dataset.
+- Test with realistic data and search terms. The planner may prefer a sequential scan when it estimates that this is cheaper.
+
+**Queries are unexpectedly fast**
+
+- Check whether the dataset is large enough to represent the intended workload.
+- Confirm that the query returns representative results.
+- Distinguish cached execution from cold-cache execution.
+
+**Results vary between runs**
+
+- Keep hardware, dataset, PostgreSQL configuration, and workload consistent.
+- Run enough iterations to calculate meaningful percentiles.
+- Record whether the database was warm or cold and avoid comparing unlike test conditions.
+
+**Benchmark results cannot be reproduced**
+
+- Document the data-generation method and database version.
+- Record the exact queries or endpoints tested.
+- Record the relevant configuration and the commands used to run the tests.
