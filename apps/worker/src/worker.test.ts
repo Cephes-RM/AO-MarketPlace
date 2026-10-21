@@ -41,6 +41,16 @@ function testWorker({ fetch, ...options }: { fetch: AlbionFetch } & Partial<Work
 }
 
 describe("worker", () => {
+  it("defaults to a five-minute API budget with half reserved for scanning", async () => {
+    const timeout = vi.spyOn(AbortSignal, "timeout");
+    try {
+      await testWorker({ fetch: async () => response(200, []) }).runCycle();
+      expect(timeout.mock.calls.slice(0, 2)).toEqual([[300_000], [150_000]]);
+    } finally {
+      timeout.mockRestore();
+    }
+  });
+
   it("does not process the same batch twice", async () => {
     const saved = new Set<string>();
     const onEvents = vi.fn(async (events: { id: number }[]) => {

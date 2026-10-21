@@ -59,7 +59,7 @@ export function createWorker(options: WorkerOptions) {
   async function runCycle(signal?: AbortSignal) {
     if (signal?.aborted) return { newEvents: 0, failures: 0 };
     let newEvents = await handlePending(signal);
-    const timeoutMs = options.cycleTimeoutMs ?? 120_000;
+    const timeoutMs = options.cycleTimeoutMs ?? 300_000;
     const deadline = AbortSignal.timeout(timeoutMs);
     const cycleSignal = signal ? AbortSignal.any([signal, deadline]) : deadline;
     // Reserve half the API budget for recovery so a slow scan cannot starve it.
