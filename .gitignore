@@ -13,6 +13,7 @@ dist/
 
 # test output
 coverage/
+artifacts/accessibility/
 
 # environment files (never commit secrets)
 .env

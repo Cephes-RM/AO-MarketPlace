@@ -14,10 +14,13 @@
     "lint": "turbo lint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "check:404": "node scripts/check-real-404s.mjs"
+    "check:404": "node scripts/check-real-404s.mjs",
+    "check:a11y": "node scripts/check-accessibility.mjs"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.14.0",
     "dotenv": "^17.4.2",
+    "playwright": "1.64.1",
     "prisma": "^6.19.3",
     "tsx": "^4.19.0",
     "turbo": "^2.5.0",

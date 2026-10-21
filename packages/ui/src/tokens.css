@@ -1,4 +1,4 @@
-/* PLAYERS-77: shared tokens preserve the existing site values. */
+/* Shared design tokens for the Albion Market interface. */
 :root {
   /* Color channels */
   --background-rgb: 16, 18, 15;
@@ -12,13 +12,14 @@
   /* Semantic colors */
   --background: rgb(var(--background-rgb));
   --foreground: #f4f1e8;
-  --muted: #a5a99d;
+  --muted: #aeb4a5;
   --line: rgba(var(--border-rgb), 0.14);
   --surface: #191c17;
   --accent: rgb(var(--accent-rgb));
-  --color-rank: #73786e;
+  --color-rank: #969d8e;
   --color-on-accent: #151610;
-  --color-caption: #82877b;
+  --color-caption: #9da492;
+  --color-control-border: #82877b;
   --color-kill-text: #b9d6a2;
   --color-death-text: #e2aaa0;
   --color-row-hover: rgba(var(--white-rgb), .025);
@@ -139,6 +140,7 @@
   --size-34: 34px;
   --size-36: 36px;
   --size-42: 42px;
+  --size-touch-target: 44px;
   --size-48: 48px;
   --size-62: 62px;
   --size-64: 64px;

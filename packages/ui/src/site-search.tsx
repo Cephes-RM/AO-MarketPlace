@@ -36,10 +36,11 @@ export function SiteSearch() {
   const [groups, setGroups] = useState<SearchGroup[]>([]);
   const [status, setStatus] = useState<SearchStatus>("idle");
   const [open, setOpen] = useState(false);
-  const [active, setActive] = useState(0);
+  const [active, setActive] = useState(-1);
   const term = query.trim();
   const results = groups.flatMap((group) => group.items);
   const showResults = open && term.length > 0;
+  const showOptions = showResults && status === "ready" && results.length > 0;
 
   useEffect(() => {
     if (term.length < 2 || term.length > 64) return;
@@ -52,7 +53,7 @@ export function SiteSearch() {
         if (!controller.signal.aborted) {
           setGroups(nextGroups);
           setStatus("ready");
-          setActive(0);
+          setActive(-1);
         }
       } catch {
         if (!controller.signal.aborted) {
@@ -75,15 +76,29 @@ export function SiteSearch() {
     return () => document.removeEventListener("pointerdown", dismiss);
   }, []);
 
+  useEffect(() => {
+    if (showOptions && active >= 0) {
+      document.getElementById(`${id}-option-${active}`)?.scrollIntoView({ block: "nearest" });
+    }
+  }, [active, id, showOptions]);
+
   function onKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     if (event.nativeEvent.isComposing) return;
     if (event.key === "Escape") {
       event.preventDefault();
       setOpen(false);
+    } else if (event.key === "Tab") {
+      setOpen(false);
+      setActive(-1);
     } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       event.preventDefault();
       setOpen(true);
-      if (results.length) setActive((current) => (current + (event.key === "ArrowDown" ? 1 : -1) + results.length) % results.length);
+      if (results.length) {
+        const direction = event.key === "ArrowDown" ? 1 : -1;
+        setActive((current) => !showOptions || current < 0
+          ? (direction === 1 ? 0 : results.length - 1)
+          : (current + direction + results.length) % results.length);
+      }
     }
   }
 
@@ -97,12 +112,15 @@ export function SiteSearch() {
     <div className="site-search" ref={root} onBlur={(event) => {
       if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOpen(false);
     }}>
-      <form role="search" onSubmit={(event) => {
+      <form role="search" aria-label="Directory" onSubmit={(event) => {
         event.preventDefault();
-        if (open && status === "ready" && results[active]) window.location.assign(results[active].href);
+        if (showOptions && results[active]) window.location.assign(results[active].href);
       }}>
         <label className="sr-only" htmlFor={`${id}-input`}>Search players, guilds and alliances</label>
-        <span className="site-search__icon" aria-hidden="true">⌕</span>
+        <svg className="site-search__icon" aria-hidden="true" focusable="false" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <circle cx="10.5" cy="10.5" r="6.5" />
+          <path d="m16 16 5 5" />
+        </svg>
         <input
           ref={input}
           id={`${id}-input`}
@@ -112,9 +130,10 @@ export function SiteSearch() {
           autoComplete="off"
           maxLength={64}
           aria-autocomplete="list"
-          aria-expanded={showResults}
-          aria-controls={showResults ? `${id}-results` : undefined}
-          aria-activedescendant={showResults && status === "ready" && results[active] ? `${id}-option-${active}` : undefined}
+          aria-expanded={showOptions}
+          aria-controls={showOptions ? `${id}-results` : undefined}
+          aria-describedby={`${id}-hint`}
+          aria-activedescendant={showOptions && results[active] ? `${id}-option-${active}` : undefined}
           onFocus={() => setOpen(true)}
           onKeyDown={onKeyDown}
           value={query}
@@ -125,32 +144,37 @@ export function SiteSearch() {
             setOpen(true);
             if (nextTerm !== term) {
               setGroups([]);
-              setActive(0);
+              setActive(-1);
               setStatus(nextTerm.length >= 2 ? "loading" : "idle");
             }
           }}
         />
         {query && <button className="site-search__clear" type="button" aria-label="Clear search" onClick={() => {
-          setQuery(""); setGroups([]); setStatus("idle"); setOpen(false); input.current?.focus();
-        }}>×</button>}
+          setQuery(""); setGroups([]); setActive(-1); setStatus("idle"); setOpen(false); input.current?.focus();
+        }}><svg aria-hidden="true" focusable="false" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="m6 6 12 12M18 6 6 18" /></svg></button>}
       </form>
-      <span className="sr-only" role="status" aria-live="polite">{showResults ? message || `${results.length} results. Use the arrow keys and Enter to open a profile.` : ""}</span>
-      {showResults && <div className="site-search__results" id={`${id}-results`} role="listbox" aria-label="Directory search results">
-        {message ? <p className="site-search__message">{message}</p> : groups.filter((group) => group.items.length > 0).map((group) => (
+      <span className="sr-only" id={`${id}-hint`}>Type at least two characters. Use Up and Down to select a result, Enter to open it, and Escape to close the results.</span>
+      <span className="sr-only" role="status" aria-live="polite" aria-atomic="true">{showResults ? message || `${results.length} results available.` : ""}</span>
+      {showResults && <div className="site-search__results">
+        {message ? <p className="site-search__message">{message}</p> : null}
+        {showOptions && <div id={`${id}-results`} role="listbox" aria-label="Directory search results">
+        {groups.filter((group) => group.items.length > 0).map((group) => (
           <div className="site-search__group" key={group.name} role="group" aria-labelledby={`${id}-${group.name}`}>
-            <p className="site-search__heading" id={`${id}-${group.name}`}>{group.name}</p>
+            <div className="site-search__heading" id={`${id}-${group.name}`}>{group.name}</div>
             {group.items.map((item) => {
               const index = results.indexOf(item);
               return <a
-                id={`${id}-option-${index}`} key={item.id} href={item.href}
+                id={`${id}-option-${index}`} key={item.id} href={item.href} tabIndex={-1}
                 role="option" aria-selected={active === index}
                 className={`site-search__result${active === index ? " site-search__result--active" : ""}`}
                 onPointerMove={() => setActive(index)}
+                onPointerDown={(event) => { if (event.button === 0) event.preventDefault(); }}
                 onClick={() => setOpen(false)}
               ><strong>{item.name}</strong>{item.guildName && <small>{item.guildName}</small>}</a>;
             })}
           </div>
         ))}
+        </div>}
       </div>}
     </div>
   );

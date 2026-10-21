@@ -52,7 +52,7 @@ export default async function GuildPage({ params }: Props) {
 
   return (
     <PageContainer>
-      <div className="breadcrumb"><Link href="/">Home</Link><span aria-hidden="true">/</span><span>Guild</span></div>
+      <nav className="breadcrumb" aria-label="Breadcrumb"><Link href="/">Home</Link><span aria-hidden="true">/</span><span aria-current="page">Guild</span></nav>
       <ProfileHeading
         eyebrow="GUILD PROFILE"
         title={guild.name}

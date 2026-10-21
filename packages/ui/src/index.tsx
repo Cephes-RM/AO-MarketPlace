@@ -13,7 +13,7 @@ export function SiteHeader() {
   return (
     <header className="site-header">
       <div className="site-header__inner">
-        <a className="brand" href="/" aria-label="Albion Market home">
+        <a className="brand" href="/">
           <span className="brand__mark" aria-hidden="true">A</span>
           <span>Albion Market</span>
         </a>
@@ -44,7 +44,7 @@ export function SiteFooter() {
 }
 
 export function PageContainer({ children }: { children: ReactNode }) {
-  return <main className="page-container">{children}</main>;
+  return <main className="page-container" id="main-content" tabIndex={-1}>{children}</main>;
 }
 
 export function ProfileHeading({
