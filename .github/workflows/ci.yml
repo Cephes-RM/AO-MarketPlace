@@ -60,6 +60,8 @@ jobs:
           cache: pnpm
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      - name: Generate Prisma Client
+        run: pnpm --filter @albion/db build
       - name: Test without database or external services
         run: pnpm test
 
