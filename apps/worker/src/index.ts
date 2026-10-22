@@ -52,12 +52,16 @@ const worker: ReturnType<typeof createWorker> = createWorker({
   },
   async onEvents(events, context) {
     const { batch, skipped } = mapKillEvents(events, region);
-    for (const entry of skipped) console.warn("Skipped Albion event that cannot be stored.", entry);
+    for (const entry of skipped) {
+      console.warn("Skipped Albion event that cannot be stored.", entry);
+      context?.skip(entry.reason);
+    }
     // Database outages throw here, so the worker keeps the events pending and retries.
-    const result = await writeIngestBatch(batch, { logger: console });
-    context?.written(result.written);
-    for (const entry of skipped) context?.skip(entry.reason);
-    context?.skip("database_constraint", result.skipped);
+    const write = () => writeIngestBatch(batch, { logger: console, onProgress: ({ written, skipped }) => {
+      context?.written(written);
+      context?.skip("database_constraint", skipped);
+    } });
+    const result = await (context ? context.stage("write", write) : write());
     console.info(
       `Stored ${result.written} of ${events.length} event(s); skipped ${result.skipped + skipped.length}.`,
     );

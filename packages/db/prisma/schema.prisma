@@ -13,16 +13,13 @@ model IngestionState {
   consecutiveFailures       Int     @default(0)
   alerted                   Boolean @default(false)
   consecutiveBoundaryMisses Int     @default(0)
-  boundaryAlerted            Boolean @default(false)
+  boundaryAlerted           Boolean @default(false)
   scanBoundary              BigInt?
-  lastFeedEventId           BigInt?
-  lastNewEventAt            DateTime?
-  feedStallAlerted          Boolean @default(false)
 }
 
 model Alliance {
   id        String   @id
-  name      String   
+  name      String
   /// Cache written only by the refresh job. Do not read until populated.
   rating    Int?
   /// Cache written only by the refresh job. Do not read until populated.
@@ -36,7 +33,7 @@ model Alliance {
 
 model Guild {
   id          String            @id
-  name        String            
+  name        String
   allianceId  String?
   /// Cache written only by the refresh job. Do not read until populated.
   rating      Int?
@@ -83,27 +80,27 @@ model GuildMembership {
 }
 
 model KillEvent {
-  id              String            @id
-  killerId        String
-  victimId        String
+  id       String @id
+  killerId String
+  victimId String
 
-  killer          Player            @relation("PlayerKills", fields: [killerId], references: [id])
-  victim          Player            @relation("PlayerDeaths", fields: [victimId], references: [id])
+  killer Player @relation("PlayerKills", fields: [killerId], references: [id])
+  victim Player @relation("PlayerDeaths", fields: [victimId], references: [id])
 
-  raw             Json?
-  battleId        String?
-  occurredAt      DateTime
+  raw        Json?
+  battleId   String?
+  occurredAt DateTime
 
   killerLoadout   Json?
   victimLoadout   Json?
   killerItemPower Float?
   victimItemPower Float?
 
-  location        String?
-  totalFame       BigInt
-  createdAt       DateTime          @default(now())
+  location  String?
+  totalFame BigInt
+  createdAt DateTime @default(now())
 
-  participants    KillParticipant[]
+  participants KillParticipant[]
 
   @@index([killerId, occurredAt])
   @@index([victimId, occurredAt])
@@ -111,21 +108,20 @@ model KillEvent {
 }
 
 model KillParticipant {
-  id          String    @id @default(cuid())
+  id          String @id @default(cuid())
   killEventId String
   playerId    String
 
   damageDone  Int?
   healingDone Int?
   killFame    BigInt?
-  isPrimary   Boolean   @default(false)
+  isPrimary   Boolean @default(false)
   loadout     Json?
   itemPower   Float?
 
-  killEvent   KillEvent @relation(fields: [killEventId], references: [id], onDelete: Cascade)
-  player      Player    @relation(fields: [playerId], references: [id])
+  killEvent KillEvent @relation(fields: [killEventId], references: [id], onDelete: Cascade)
+  player    Player    @relation(fields: [playerId], references: [id])
 
   @@unique([killEventId, playerId])
   @@index([playerId])
 }
-

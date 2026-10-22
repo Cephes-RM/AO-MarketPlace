@@ -5,18 +5,15 @@ import { createWorkerStateStore } from "./worker-state";
 
 function database() {
   const rows = new Map<string, { region: string; consecutiveFailures: number; alerted: boolean;
-    consecutiveBoundaryMisses?: number; boundaryAlerted?: boolean; scanBoundary: bigint | null;
-    lastFeedEventId?: bigint; lastNewEventAt?: Date; feedStallAlerted?: boolean }>();
+    consecutiveBoundaryMisses?: number; boundaryAlerted?: boolean; scanBoundary: bigint | null }>();
   const delegate = {
     findUnique: vi.fn(async ({ where }: { where: { region: string } }) => rows.get(where.region) ?? null),
     upsert: vi.fn(async ({ where, create, update }: {
       where: { region: string };
       create: { region: string; consecutiveFailures?: number; alerted?: boolean;
-        consecutiveBoundaryMisses?: number; boundaryAlerted?: boolean; scanBoundary?: bigint;
-        lastFeedEventId?: bigint; lastNewEventAt?: Date; feedStallAlerted?: boolean };
+        consecutiveBoundaryMisses?: number; boundaryAlerted?: boolean; scanBoundary?: bigint };
       update: { consecutiveFailures?: number; alerted?: boolean;
-        consecutiveBoundaryMisses?: number; boundaryAlerted?: boolean; scanBoundary?: bigint;
-        lastFeedEventId?: bigint; lastNewEventAt?: Date; feedStallAlerted?: boolean };
+        consecutiveBoundaryMisses?: number; boundaryAlerted?: boolean; scanBoundary?: bigint };
     }) => {
       const previous = rows.get(where.region);
       const next = previous ? { ...previous, ...update }
@@ -60,31 +57,6 @@ describe("database worker state", () => {
     await restarted.write({ consecutiveFailures: 0, alerted: false, consecutiveBoundaryMisses: 0, boundaryAlerted: false });
     expect(await restarted.read()).toMatchObject({ consecutiveBoundaryMisses: 0, boundaryAlerted: false });
     expect(await restarted.readBoundary()).toBe(200);
-  });
-
-  it("restores feed activity across restarts independently of the scan boundary", async () => {
-    const db = database();
-    const store = createWorkerStateStore("europe", db.delegate);
-    const activity = { lastFeedEventId: 200, lastNewEventAt: 1_792_310_400_000, feedStallAlerted: true };
-    await store.writeBoundary(100);
-    await store.write({ consecutiveFailures: 0, alerted: false, ...activity });
-    const restarted = createWorkerStateStore("europe", db.delegate);
-    expect(await restarted.read()).toMatchObject(activity);
-    expect(await restarted.readBoundary()).toBe(100);
-    await restarted.writeBoundary(300);
-    expect(await restarted.read()).toMatchObject(activity);
-    expect(await createWorkerStateStore("west", db.delegate).read()).not.toHaveProperty("lastFeedEventId");
-  });
-
-  it("rejects invalid activity before writing or restoring it", async () => {
-    const db = database();
-    const store = createWorkerStateStore("europe", db.delegate);
-    await expect(store.write({ consecutiveFailures: 0, alerted: false, lastFeedEventId: -1 })).rejects.toThrow("feed event ID");
-    await expect(store.write({ consecutiveFailures: 0, alerted: false, lastNewEventAt: Number.MAX_SAFE_INTEGER })).rejects.toThrow("activity time");
-    expect(db.delegate.upsert).not.toHaveBeenCalled();
-    db.rows.set("europe", { region: "europe", consecutiveFailures: 0, alerted: false, scanBoundary: null,
-      lastFeedEventId: 9007199254740993n });
-    await expect(store.read()).rejects.toThrow("feed event ID");
   });
 
   it("keeps server regions separate", async () => {

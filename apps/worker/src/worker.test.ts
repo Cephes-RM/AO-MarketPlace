@@ -628,6 +628,25 @@ describe("worker", () => {
     expect(attempts).toEqual([1, 2, 3, 4, 5]);
   });
 
+  it("does not report an API timeout when a completed scan is followed by slow handling", async () => {
+    const log = logger();
+    const timeout = vi.spyOn(AbortSignal, "timeout");
+    const deadlines: AbortController[] = [];
+    timeout.mockImplementation(() => {
+      const controller = new AbortController();
+      deadlines.push(controller);
+      return controller.signal;
+    });
+    try {
+      const worker = testWorker({ fetch: async () => response(200, [event(42)]), logger: log,
+        onEvents: async () => { for (const controller of deadlines) controller.abort(); } });
+      await worker.runCycle();
+      expect(log.warn).not.toHaveBeenCalledWith(expect.stringContaining("time budget exhausted"));
+    } finally {
+      timeout.mockRestore();
+    }
+  });
+
   it("processes partial scan results after a timeout and progresses on the next cycle", async () => {
     let requests = 0;
     let hangingSignal: AbortSignal | undefined;

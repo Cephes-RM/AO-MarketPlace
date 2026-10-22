@@ -39,6 +39,30 @@ function setup(fetch: AlbionFetch, store = stateStore(), threshold = 3) {
 }
 
 describe("monitored worker", () => {
+  it("keeps connection errors in alerts when retry backoff exhausts the scan budget", async () => {
+    const store = stateStore();
+    const sendAlert = vi.fn();
+    const reports: RunReport[] = [];
+    const fetch = vi.fn(async () => {
+      throw new TypeError("fetch failed", { cause: new Error("connect ECONNREFUSED https://proxy.invalid/secret") });
+    });
+    const worker: ReturnType<typeof createWorker> = createWorker({ intervalMs: 1, cycleTimeoutMs: 100,
+      client: createAlbionClient({ region: "europe", fetch, retry: { delaysMs: [30_000] },
+        onRetry: () => worker.onRetry() }).gameinfo,
+      monitor: createIngestionMonitor({ region: "europe", store, failureThreshold: 1, sendAlert,
+        log: entry => { if (entry.event === "ingestion.run") reports.push(entry); } }),
+      findExistingIds: async () => new Set(), onEvents: async () => {},
+      logger: { info() {}, warn() {}, error() {} },
+    });
+    const random = vi.spyOn(Math, "random").mockReturnValue(0.99);
+    try { await worker.runCycle(); } finally { random.mockRestore(); }
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(reports[0]).toMatchObject({ status: "failure", failedStage: "fetch", alertStatus: "sent", retries: 1 });
+    expect(reports[0].error).toContain("ECONNREFUSED");
+    expect(reports[0].error).not.toContain("secret");
+    expect(sendAlert).toHaveBeenCalledWith(expect.objectContaining({ error: expect.stringContaining("ECONNREFUSED") }));
+  });
+
   it("forwards HTTP retries and logs real metrics without claiming database writes", async () => {
     let calls = 0;
     const { worker, reports } = setup(async () => ++calls === 1 ? response(502, null) : response(200, [event(100)]));

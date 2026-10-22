@@ -170,7 +170,6 @@ export function createWorker(options: WorkerOptions) {
         failedIds.set(id, 0);
       }
 
-      context?.feed(pageIds.size === 0 ? undefined : Math.max(...pageIds));
       for (const id of pageIds) fetchedIds.add(id);
       if (!pageWasFull || (completedScanBoundary !== undefined && pageIds.has(completedScanBoundary))) {
         scanCompleted = true;
@@ -224,12 +223,12 @@ export function createWorker(options: WorkerOptions) {
       completedScanBoundary = newestId;
     }
 
-    if (scanSignal.aborted || cycleSignal.aborted) {
+    if (!scanCompleted && (scanSignal.aborted || cycleSignal.aborted)) {
       options.logger.warn("Worker API time budget exhausted; further API work deferred.");
     } else if (pageWasFull) {
       options.logger.warn(`Stopped at WORKER_MAX_PAGES=${maxPages}; older events may be missed.`);
     }
-    options.logger.info(`Cycle complete: ${newEvents} new event(s), ${failures} malformed event(s).`);
+    if (!context) options.logger.info(`Cycle complete: ${newEvents} new event(s), ${failures} malformed event(s).`);
     // Partial results can be handled without reporting an incomplete scan as healthy.
     if (context && !scanCompleted && !signal?.aborted) {
       await context.stage("fetch", () => { throw scanError ?? new Error("Feed scan did not complete within the worker limits"); });

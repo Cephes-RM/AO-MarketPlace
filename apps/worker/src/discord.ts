@@ -8,10 +8,7 @@ export function discordNotifier(webhook: string, request: typeof fetch = fetch) 
   // Request confirmation; a fire-and-forget 204 can hide an unsaved message.
   url.searchParams.set("wait", "true");
   return async (report: RunReport) => {
-    const incident = report.alertType === "feed_stall" ? {
-      title: "Ingestion feed stalled", color: 0xf59e0b, stage: "Recent-events feed",
-      description: `No new events received for **${Math.floor((report.feedIdleMs ?? 0) / 60_000)} minutes**.\nCheck the Albion API and worker logs.`,
-    } : report.alertType === "polling_interval" ? {
+    const incident = report.alertType === "polling_interval" ? {
       title: "Ingestion coverage warning", color: 0xf59e0b, stage: "Feed pagination",
       description: `Previous scan boundary missing for **${report.consecutiveBoundaryMisses} consecutive runs**.\nPoll more often; also check feed consistency.`,
     } : {

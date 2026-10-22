@@ -119,6 +119,14 @@ failed stage. It sends one alert per incident after the configured threshold,
 retries unsuccessful delivery and clears the incident after recovery. Logged
 errors redact URLs, and alert messages disable Discord mentions.
 
+Each cycle logs `ingestion.run_started` with "Cycle started", followed by one
+`ingestion.run` summary saying "Cycle completed", "Cycle failed" with the stage
+and reason, or "Cycle cancelled". Both entries share the same `runId`, which
+records the cycle's start time. Timeout errors retain the last request failure
+and its cause, with messages limited to their first two lines and 350 characters
+overall; URLs remain redacted. A completed scan does not produce a scan-timeout
+warning merely because its database writes took longer than the API budget.
+
 Run `pnpm --filter worker monitor:demo` from the repository root for the local
 simulation. It uses mocked API requests and a mocked Discord notifier: three
 failed cycles produce one simulated alert, followed by a healthy cycle that
@@ -128,7 +136,7 @@ Every scheduled cycle now runs through `createIngestionMonitor`. Client
 `onRetry` notifications increment that cycle's retry metric. Failed API scans,
 including partial or capped scans, are reported as failures even if their
 partial events were handled. Failed stages are `fetch`, `event_recovery`,
-`existing_ids`, `event_handler`, `worker_state` or `monitor_state`.
+`existing_ids`, `event_handler`, `write`, `worker_state` or `monitor_state`.
 Shutdown observed before monitor-state persistence reports `cancelled` without
 resetting an existing incident. If shutdown arrives after successful work and
 its reset write has started, that write can finish normally and report success.
@@ -140,9 +148,12 @@ is logged and retried without resending in the same process. A crash between
 delivery and acknowledgment can still produce a duplicate after restart.
 
 `INGESTION_FAILURE_THRESHOLD` defaults to `3`. Set `DISCORD_WEBHOOK_URL` to the
-team-approved webhook through platform secrets. Until task 4.7 inserts events,
-`written` is always zero: successfully logged new events have skip reason
-`not_persisted`. Other reasons include `malformed`, `invalid_id`, `duplicate`,
+team-approved webhook through platform secrets. `written` comes from the
+database writer's committed-event progress, so earlier commits remain counted
+even if a later event fails. The original failure still propagates and pending
+events remain retryable. Mapping failures keep their reasons, such as
+`invalid_timestamp` or `missing_raw_payload`; database constraint skips use
+`database_constraint`. Other reasons include `malformed`, `invalid_id`, `duplicate`,
 `already_processed` and `already_persisted`. Fetched/skipped counts describe
 records encountered, including overlapping pages, not just unique events.
 
@@ -158,10 +169,10 @@ the same threshold (default `3`) and sends a separate polling-interval alert
 that recommends polling more often. A run can finish successfully and still
 raise this coverage alert; normal execution-failure alerts remain independent.
 
-A run with zero boundary warnings resets the streak and its alert flag, even
-if execution failed. This tracks consecutive warning-bearing runs; a reset is
-not proof of healthy coverage during an outage. Shutdown does not change the
-streak. Both the streak and its
+A successful run with zero boundary warnings resets the streak and its alert
+flag only after its monitor state is saved. Failed runs without a boundary
+warning preserve the streak, so API or database outages cannot suppress a
+polling alert. Shutdown does not change the streak. Both the streak and its
 alert flag are persisted in the same `IngestionState` row and restored on
 restart. Delivery failures are retried on later affected runs; confirmed
 delivery is suppressed until a clean run resets the incident.
@@ -170,23 +181,6 @@ A missing boundary signals possible coverage gaps, not an exact number of
 missed kills. Too-long polling intervals are one cause; inconsistent or delayed
 API responses can also contribute. This alert does not automatically change
 the configured interval or recover unavailable history.
-
-### Feed-stall monitoring
-
-A successful feed read records its highest observed event ID. Only an ID above
-the saved high-water mark resets `lastNewEventAt`; event timestamps and detail
-recoveries do not. This follows the worker's existing increasing-ID feed
-assumption. Repeated or empty feed responses for two hours trigger a separate
-`feed_stall` Discord alert. A feed that keeps delivering new IDs an hour late
-does not alert just because its timestamps lag behind the clock.
-
-`newestFeedEventId`, `feedIdleMs`, and `feedStallAlertStatus` are included in each
-structured run. Activity and confirmed alert delivery are saved in the existing
-state table. Arrivals observed before shutdown are saved even if the run is
-cancelled; that run sends no alerts and leaves failure and boundary counters
-unchanged. Delivery retries and incident reset work independently of other
-alerts. Failed fetches alone do not trigger this alert; they retain the existing
-execution-failure alert. A stopped process needs the separate heartbeat monitor.
 
 ### Approved live alert test (PLAYERS-49)
 
