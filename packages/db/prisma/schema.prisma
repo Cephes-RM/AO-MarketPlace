@@ -28,7 +28,7 @@ model Alliance {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([name])
+  @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, map: "Alliance_name_trgm_idx")
 }
 
 model Guild {
@@ -44,7 +44,7 @@ model Guild {
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
 
-  @@index([name])
+  @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, map: "Guild_name_trgm_idx")
 }
 
 model Player {
@@ -63,7 +63,7 @@ model Player {
   guildMemberships GuildMembership[]
   participants     KillParticipant[]
 
-  @@index([name])
+  @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, map: "Player_name_trgm_idx")
 }
 
 model GuildMembership {
