@@ -1,6 +1,7 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { prisma } from "./client";
 import type { PlayerLoadout } from "./loadout";
+import { syncGuildMembership } from "./membership";
 
 export interface IngestAlliance {
   id: string;
@@ -13,6 +14,11 @@ export interface IngestGuild {
   allianceId: string | null;
 }
 
+export interface IngestFighterGuild {
+  playerId: string;
+  guildId: string | null;
+}
+
 /** Lifetime fame is deliberately absent: it only ever comes from the player endpoint. */
 export interface IngestPlayer {
   id: string;
@@ -22,6 +28,7 @@ export interface IngestPlayer {
 
 export interface IngestParticipant {
   playerId: string;
+  guildId?: string | null;
   damageDone: number | null;
   healingDone: number | null;
   /** Fame from this one fight, not the player's lifetime total. */
@@ -35,6 +42,9 @@ export interface IngestKillEvent {
   id: string;
   killerId: string;
   victimId: string;
+  killerGuildId?: string | null;
+  victimGuildId?: string | null;
+  fighterGuilds?: IngestFighterGuild[];
   raw: Prisma.InputJsonValue;
   battleId: string | null;
   occurredAt: Date;
@@ -61,7 +71,8 @@ export interface IngestResult {
   skipped: number;
 }
 
-type IngestClient = Pick<PrismaClient, "alliance" | "guild" | "player" | "$transaction">;
+type IngestClient = Pick<PrismaClient, "alliance" | "guild" | "player" | "$transaction"> &
+  Partial<Pick<PrismaClient, "guildMembership">>;
 
 interface IngestOptions {
   logger: Pick<Console, "warn">;
@@ -142,8 +153,13 @@ export async function writeIngestBatch(batch: IngestBatch, options: IngestOption
     }));
   }
 
+  // Process events oldest first so membership history transitions are applied chronologically.
+  const sortedEvents = [...batch.events].sort(
+    (a, b) => a.occurredAt.getTime() - b.occurredAt.getTime(),
+  );
+
   const result: IngestResult = { written: 0, skipped: 0 };
-  for (const { id, participants, ...event } of batch.events) {
+  for (const { id, participants, fighterGuilds, killerGuildId, victimGuildId, ...event } of sortedEvents) {
     const fields = {
       ...event,
       killerLoadout: loadoutJson(event.killerLoadout),
@@ -152,12 +168,38 @@ export async function writeIngestBatch(batch: IngestBatch, options: IngestOption
     const stored = await attempt("kill event", id, () => client.$transaction(async (tx) => {
       await tx.killEvent.upsert({ where: { id }, create: { id, ...fields }, update: fields });
       for (const { playerId, loadout, ...participant } of participants) {
-        const data = { ...participant, loadout: loadoutJson(loadout) };
+        const { guildId: _strippedGuildId, ...cleanParticipant } = participant as { guildId?: unknown };
+        const data = { ...cleanParticipant, loadout: loadoutJson(loadout) };
         await tx.killParticipant.upsert({
           where: { killEventId_playerId: { killEventId: id, playerId } },
           create: { killEventId: id, playerId, ...data },
           update: data,
         });
+      }
+
+      if ("guildMembership" in tx && tx.guildMembership) {
+        const membershipTx = tx as Parameters<typeof syncGuildMembership>[0];
+        const playersToSync = new Map<string, string | null>();
+        if (fighterGuilds) {
+          for (const fg of fighterGuilds) {
+            playersToSync.set(fg.playerId, fg.guildId);
+          }
+        }
+        if (killerGuildId !== undefined) {
+          playersToSync.set(event.killerId, killerGuildId);
+        }
+        if (victimGuildId !== undefined) {
+          playersToSync.set(event.victimId, victimGuildId);
+        }
+        for (const p of participants) {
+          if (p.guildId !== undefined) {
+            playersToSync.set(p.playerId, p.guildId);
+          }
+        }
+
+        for (const [playerId, guildId] of playersToSync) {
+          await syncGuildMembership(membershipTx, playerId, guildId, event.occurredAt);
+        }
       }
     }, { timeout: 30_000 }));
     if (stored) result.written += 1;

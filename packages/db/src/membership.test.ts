@@ -76,6 +76,16 @@ function makeDb() {
             { code: "P2002", clientVersion: "test" },
           );
         }
+        // Enforce the partial unique index: at most one open membership per player.
+        const openDuplicate = rows.find(
+          (r) => r.playerId === data.playerId && r.leftAt === null,
+        );
+        if (openDuplicate) {
+          throw new PrismaClientKnownRequestError(
+            "Unique constraint failed on the partial index: (`playerId`) WHERE \"leftAt\" IS NULL",
+            { code: "P2002", clientVersion: "test" },
+          );
+        }
         const row: MembershipRow = { ...data, leftAt: null };
         rows.push(row);
         return row;
@@ -202,6 +212,41 @@ describe("syncGuildMembership", () => {
     expect(db.guildMembership.create).not.toHaveBeenCalled();
   });
 
+  // ── Stale observation guard ──────────────────────────────────────────────
+
+  it("does not overwrite a newer open membership when a stale observation arrives", async () => {
+    const db = makeDb();
+    // Player joined guild-b at T1 and is currently still there (open membership).
+    db.rows.push({ playerId: "player-1", guildId: "guild-b", joinedAt: T1, leftAt: null });
+
+    // A stale fight from T0 arrives showing the old guild-a.
+    await syncGuildMembership(txOf(db), "player-1", "guild-a", T0);
+
+    // The newer open membership in guild-b must remain untouched.
+    expect(db.rows).toHaveLength(1);
+    expect(db.rows[0]).toEqual({
+      playerId: "player-1",
+      guildId: "guild-b",
+      joinedAt: T1,
+      leftAt: null,
+    });
+    expect(db.guildMembership.update).not.toHaveBeenCalled();
+    expect(db.guildMembership.create).not.toHaveBeenCalled();
+  });
+
+  it("does not close an open membership when a stale observation shows the player as guildless", async () => {
+    const db = makeDb();
+    db.rows.push({ playerId: "player-1", guildId: "guild-b", joinedAt: T1, leftAt: null });
+
+    // A stale fight from T0 arrives showing the player was guildless.
+    await syncGuildMembership(txOf(db), "player-1", null, T0);
+
+    expect(db.rows).toHaveLength(1);
+    expect(db.rows[0].leftAt).toBeNull();
+    expect(db.guildMembership.update).not.toHaveBeenCalled();
+    expect(db.guildMembership.create).not.toHaveBeenCalled();
+  });
+
   // ── DB constraint: second open membership is rejected ────────────────────
 
   it("rejects a second open membership for the same (playerId, guildId, joinedAt) triple", async () => {
@@ -214,6 +259,17 @@ describe("syncGuildMembership", () => {
     await expect(
       db.guildMembership.create({
         data: { playerId: "player-1", guildId: "guild-a", joinedAt: T0 },
+      }),
+    ).rejects.toThrow(PrismaClientKnownRequestError);
+  });
+
+  it("rejects a second open membership for the same player via partial unique index", async () => {
+    const db = makeDb();
+    db.rows.push({ playerId: "player-1", guildId: "guild-a", joinedAt: T0, leftAt: null });
+
+    await expect(
+      db.guildMembership.create({
+        data: { playerId: "player-1", guildId: "guild-b", joinedAt: T1 },
       }),
     ).rejects.toThrow(PrismaClientKnownRequestError);
   });

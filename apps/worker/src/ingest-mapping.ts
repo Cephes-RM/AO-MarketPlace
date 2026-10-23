@@ -137,10 +137,25 @@ export function mapKillEvents(events: AlbionKillboardEvent[], region: string): M
       }
     }
 
+    const fighterGuilds: { playerId: string; guildId: string | null }[] = [];
+    const seenFighterIds = new Set<string>();
+    for (const fighter of fighters) {
+      if (!seenFighterIds.has(fighter.id)) {
+        seenFighterIds.add(fighter.id);
+        fighterGuilds.push({
+          playerId: fighter.id,
+          guildId: fighter.guildId || null,
+        });
+      }
+    }
+
     mapped.push({
       id: String(event.id),
       killerId: event.killer.id,
       victimId: event.victim.id,
+      killerGuildId: event.killer.guildId || null,
+      victimGuildId: event.victim.guildId || null,
+      fighterGuilds,
       raw: stripEmpty(event.raw) as IngestKillEvent["raw"],
       battleId: event.battleId === undefined ? null : String(event.battleId),
       occurredAt,

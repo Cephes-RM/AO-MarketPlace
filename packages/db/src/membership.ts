@@ -11,6 +11,11 @@ type MembershipClient = Pick<PrismaClient, "guildMembership">;
  *     If guildId is non-null → open a new membership.
  *     If guildId is null     → no-op (guildless and unknown: nothing to record).
  *
+ * • Stale observation:
+ *     If `now` is earlier than the open membership's `joinedAt`, return
+ *     without writing (a delayed fight or season backfill must not overwrite
+ *     newer history).
+ *
  * • Known player with an open membership:
  *     Same guild → no-op (idempotent).
  *     Different guild (or guildless) → close the old membership then, if the
@@ -38,6 +43,9 @@ export async function syncGuildMembership(
     where: { playerId, leftAt: null },
     select: { guildId: true, joinedAt: true },
   });
+
+  // Guard against stale observations: a late fight or backfill must not overwrite newer history.
+  if (open !== null && now.getTime() < open.joinedAt.getTime()) return;
 
   const currentGuildId = open?.guildId ?? null;
 
