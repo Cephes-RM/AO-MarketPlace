@@ -70,5 +70,6 @@ export {
 } from "./search";
 
 export { getAllianceById, getGuildById, getLandingPageData } from "./marketplace";
+export { syncGuildMembership } from "./membership";
 
 export * from "@prisma/client";
