@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
+import { createServer } from "node:net";
+import { PrismaClient, createWorkerStateStore } from "@albion/db";
 import { createAlbionClient } from "@albion/albion-client";
 import { discordNotifier } from "./discord";
 import { createIngestionMonitor, memoryStateStore, safeError, type RunContext, type RunReport } from "./monitor";
@@ -8,6 +10,55 @@ const fail = async (context: RunContext) => {
 };
 
 describe("ingestion monitoring", () => {
+  it.each(["success", "failure", "cancelled"] as const)("clearly logs the start and %s outcome with the same run ID", async outcome => {
+    const log = vi.fn();
+    const controller = new AbortController();
+    const monitor = createIngestionMonitor({ region: "europe", log });
+    const report = await monitor.run(async context => {
+      if (outcome === "failure") await fail(context);
+      if (outcome === "cancelled") controller.abort();
+    }, controller.signal);
+    expect(log).toHaveBeenCalledTimes(2);
+    expect(log.mock.calls[0][0]).toEqual({ event: "ingestion.run_started", region: "europe",
+      runId: report.runId, message: "Cycle started" });
+    expect(log.mock.calls[1][0]).toMatchObject({ event: "ingestion.run", runId: report.runId, status: outcome });
+    expect(report.message).toBe(outcome === "failure" ? "Cycle failed at fetch: API unavailable"
+      : outcome === "cancelled" ? "Cycle cancelled" : "Cycle completed");
+  });
+
+  it("keeps underlying errors readable, short and URL-redacted", () => {
+    const error = new Error("Budget expired\nFirst detail\nHidden detail", {
+      cause: new TypeError("fetch failed", { cause: new Error("connect ECONNREFUSED https://proxy.invalid/private-token") }),
+    });
+    expect(safeError(error)).toBe("Budget expired First detail: fetch failed: connect ECONNREFUSED [redacted URL]");
+    expect(safeError(new Error("x".repeat(1000)))).toHaveLength(350);
+  });
+
+  it.each(["colorless", "minimal"] as const)("keeps real %s Prisma connection diagnostics in reports and alerts", async errorFormat => {
+    const server = createServer();
+    await new Promise<void>((resolve, reject) => { server.once("error", reject); server.listen(0, "127.0.0.1", resolve); });
+    const address = server.address();
+    if (!address || typeof address === "string") throw new Error("Expected a local TCP port");
+    await new Promise<void>((resolve, reject) => { server.close(error => error ? reject(error) : resolve()); });
+    const database = new PrismaClient({
+      datasourceUrl: `postgresql://local_test:unused@127.0.0.1:${address.port}/unavailable?connect_timeout=1`,
+      errorFormat,
+    });
+    const sendAlert = vi.fn();
+    try {
+      const monitor = createIngestionMonitor({ region: "europe", store: createWorkerStateStore("europe", database.ingestionState),
+        failureThreshold: 1, sendAlert, log: vi.fn() });
+      const report = await monitor.run(async () => {});
+      expect(report).toMatchObject({ status: "failure", failedStage: "monitor_state", alertStatus: "sent" });
+      expect(report.error).toContain("Can't reach database server");
+      expect(report.error).not.toContain("invocation");
+      expect(report.error!.length).toBeLessThanOrEqual(350);
+      expect(sendAlert).toHaveBeenCalledWith(expect.objectContaining({ error: report.error }));
+    } finally {
+      await database.$disconnect();
+    }
+  });
+
   it("logs fetched, written, skipped reasons, retries and duration as structured data", async () => {
     const log = vi.fn();
     let clock = 0;
@@ -88,6 +139,100 @@ describe("ingestion monitoring", () => {
     expect(await monitor.run(async () => {})).toMatchObject({ status: "failure", failedStage: "monitor_state" });
   });
 
+  it("counts repeated read outages without overwriting unknown stored state", async () => {
+    let unavailable = true;
+    let saved = { consecutiveFailures: 2, alerted: false };
+    const store = {
+      read: async () => { if (unavailable) throw new Error("Read unavailable"); return { ...saved }; },
+      write: vi.fn(async (next: typeof saved) => { saved = { ...next }; }),
+    };
+    const sendAlert = vi.fn(async () => {});
+    const work = vi.fn(fail);
+    const monitor = createIngestionMonitor({ region: "europe", store, sendAlert, log: vi.fn() });
+    for (let count = 1; count <= 4; count++) {
+      expect(await monitor.run(work)).toMatchObject({ status: "failure", failedStage: "monitor_state", consecutiveFailures: count });
+    }
+    expect(work).not.toHaveBeenCalled();
+    expect(store.write).not.toHaveBeenCalled();
+    expect(sendAlert).toHaveBeenCalledOnce();
+    unavailable = false;
+    expect(await monitor.run(fail)).toMatchObject({ consecutiveFailures: 7, alertStatus: "already-sent" });
+    expect(saved).toEqual({ consecutiveFailures: 7, alerted: true });
+  });
+
+  it("counts reset-write outages and persists the incident when writes recover", async () => {
+    let unavailable = true;
+    const backing = memoryStateStore();
+    const store = { read: backing.read, write: async (state: Parameters<typeof backing.write>[0]) => {
+      if (unavailable) throw new Error("Write unavailable");
+      await backing.write(state);
+    } };
+    const sendAlert = vi.fn(async () => {});
+    const monitor = createIngestionMonitor({ region: "europe", store, sendAlert, log: vi.fn() });
+    for (let count = 1; count <= 4; count++) {
+      expect(await monitor.run(async () => {})).toMatchObject({ status: "failure", failedStage: "monitor_state", consecutiveFailures: count });
+    }
+    expect(sendAlert).toHaveBeenCalledOnce();
+    unavailable = false;
+    expect(await monitor.run(fail)).toMatchObject({ consecutiveFailures: 5, alertStatus: "already-sent" });
+    expect(await backing.read()).toEqual({ consecutiveFailures: 5, alerted: true });
+    await monitor.run(async () => {});
+    expect(await backing.read()).toEqual({ consecutiveFailures: 0, alerted: false });
+  });
+
+  it("keeps confirmed delivery when acknowledgment fails and retries persistence without resending", async () => {
+    const backing = memoryStateStore();
+    let rejectAcknowledgment = true;
+    const store = { read: backing.read, write: async (state: Parameters<typeof backing.write>[0]) => {
+      if (state.alerted && rejectAcknowledgment) throw new Error("Acknowledgment unavailable");
+      await backing.write(state);
+    } };
+    const sendAlert = vi.fn(async () => {});
+    const log = vi.fn();
+    const monitor = createIngestionMonitor({ region: "europe", store, sendAlert, failureThreshold: 1, log });
+    expect((await monitor.run(fail)).alertStatus).toBe("sent");
+    expect((await monitor.run(fail)).alertStatus).toBe("already-sent");
+    expect(sendAlert).toHaveBeenCalledOnce();
+    expect(log).toHaveBeenCalledWith({ event: "ingestion.monitor_error", error: "Acknowledgment unavailable" });
+    rejectAcknowledgment = false;
+    await monitor.run(fail);
+    expect(await backing.read()).toEqual({ consecutiveFailures: 3, alerted: true });
+    const restarted = createIngestionMonitor({ region: "europe", store, sendAlert, failureThreshold: 1, log });
+    expect((await restarted.run(fail)).alertStatus).toBe("already-sent");
+    expect(sendAlert).toHaveBeenCalledOnce();
+  });
+
+  it("finishes a reset write when shutdown arrives after successful work", async () => {
+    const controller = new AbortController();
+    const backing = memoryStateStore();
+    await backing.write({ consecutiveFailures: 2, alerted: false });
+    const monitor = createIngestionMonitor({ region: "europe", log: vi.fn(), store: {
+      read: backing.read,
+      write: async (state) => { controller.abort(); await backing.write(state); },
+    } });
+    expect(await monitor.run(async () => {}, controller.signal)).toMatchObject({ status: "success", consecutiveFailures: 0 });
+    expect(await backing.read()).toEqual({ consecutiveFailures: 0, alerted: false });
+  });
+
+  it("retains known incident history during later read outages and resets after recovery", async () => {
+    const backing = memoryStateStore();
+    let unavailable = false;
+    const store = {
+      read: async () => { if (unavailable) throw new Error("Read unavailable"); return backing.read(); },
+      write: backing.write,
+    };
+    const sendAlert = vi.fn(async () => {});
+    const monitor = createIngestionMonitor({ region: "europe", store, sendAlert, log: vi.fn() });
+    expect((await monitor.run(fail)).consecutiveFailures).toBe(1);
+    unavailable = true;
+    expect((await monitor.run(fail)).consecutiveFailures).toBe(2);
+    expect(await monitor.run(fail)).toMatchObject({ consecutiveFailures: 3, alertStatus: "sent" });
+    expect(sendAlert).toHaveBeenCalledOnce();
+    unavailable = false;
+    expect(await monitor.run(async () => {})).toMatchObject({ status: "success", consecutiveFailures: 0 });
+    expect(await backing.read()).toEqual({ consecutiveFailures: 0, alerted: false });
+  });
+
   it("redacts connection strings and webhook tokens", () => {
     const message = safeError(new Error("Cannot reach postgresql://user:password@db/private or https://discord.com/api/webhooks/123/secret"));
     expect(message).toBe("Cannot reach [redacted URL] or [redacted URL]");
@@ -96,15 +241,159 @@ describe("ingestion monitoring", () => {
   });
 });
 
+describe("boundary warning monitoring", () => {
+  const miss = async (context: RunContext) => { context.boundaryMiss(); };
+
+  it("logs the per-run count and alerts once after consecutive affected runs across restarts", async () => {
+    const store = memoryStateStore();
+    const sendAlert = vi.fn(async (_report: RunReport) => {});
+    for (let run = 1; run <= 4; run++) {
+      const log = vi.fn();
+      const monitor = createIngestionMonitor({ region: "europe", store, sendAlert, log });
+      const report = await monitor.run(async (context) => { context.boundaryMiss(); context.boundaryMiss(); });
+      expect(report).toMatchObject({ status: "success", boundaryMisses: 2, consecutiveBoundaryMisses: run,
+        consecutiveFailures: 0, alertStatus: "not-needed",
+        boundaryAlertStatus: run < 3 ? "not-needed" : run === 3 ? "sent" : "already-sent" });
+      expect(log).toHaveBeenCalledWith(report);
+    }
+    expect(sendAlert).toHaveBeenCalledOnce();
+    expect(sendAlert.mock.calls[0][0]).toMatchObject({ alertType: "polling_interval", consecutiveBoundaryMisses: 3 });
+  });
+
+  it("resets the streak and alert flag after a clean successful run", async () => {
+    const sendAlert = vi.fn(async () => {});
+    const monitor = createIngestionMonitor({ region: "europe", failureThreshold: 2, sendAlert, log: vi.fn() });
+    await monitor.run(miss);
+    expect((await monitor.run(miss)).boundaryAlertStatus).toBe("sent");
+    expect(await monitor.run(async () => {})).toMatchObject({ boundaryMisses: 0, consecutiveBoundaryMisses: 0 });
+    expect(await monitor.run(miss)).toMatchObject({ consecutiveBoundaryMisses: 1, boundaryAlertStatus: "not-needed" });
+    expect((await monitor.run(miss)).boundaryAlertStatus).toBe("sent");
+    expect(sendAlert).toHaveBeenCalledTimes(2);
+  });
+
+  it("preserves the warning streak through failures and only resets after success", async () => {
+    const sendAlert = vi.fn();
+    const monitor = createIngestionMonitor({ region: "europe", failureThreshold: 2, sendAlert, log: vi.fn() });
+    await monitor.run(miss);
+    expect(await monitor.run(fail)).toMatchObject({ boundaryMisses: 0, consecutiveBoundaryMisses: 1,
+      boundaryAlertStatus: "not-needed", consecutiveFailures: 1 });
+    expect(await monitor.run(miss)).toMatchObject({ consecutiveBoundaryMisses: 2, boundaryAlertStatus: "sent" });
+    await monitor.run(fail);
+    expect((await monitor.run(miss)).boundaryAlertStatus).toBe("already-sent");
+    expect(sendAlert).toHaveBeenCalledOnce();
+    expect((await monitor.run(async () => {})).consecutiveBoundaryMisses).toBe(0);
+  });
+
+  it("restores the saved warning streak after an initial state-read failure", async () => {
+    const backing = memoryStateStore();
+    await backing.write({ consecutiveFailures: 0, alerted: false, consecutiveBoundaryMisses: 2, boundaryAlerted: false });
+    const read = vi.fn(backing.read).mockRejectedValueOnce(new Error("Read unavailable"));
+    const sendAlert = vi.fn(async () => {});
+    const monitor = createIngestionMonitor({ region: "europe", store: { read, write: backing.write }, sendAlert, log: vi.fn() });
+    await monitor.run(miss);
+    expect(await monitor.run(miss)).toMatchObject({ consecutiveBoundaryMisses: 3, boundaryAlertStatus: "sent" });
+    expect(sendAlert).toHaveBeenCalledOnce();
+  });
+
+  it("does not reset the boundary incident if saving an otherwise successful run fails", async () => {
+    const backing = memoryStateStore();
+    await backing.write({ consecutiveFailures: 0, alerted: false, consecutiveBoundaryMisses: 2, boundaryAlerted: true });
+    const write = vi.fn(backing.write).mockRejectedValueOnce(new Error("Database unavailable"));
+    const monitor = createIngestionMonitor({ region: "europe", store: { read: backing.read, write }, log: vi.fn() });
+    expect(await monitor.run(async () => {})).toMatchObject({ status: "failure", consecutiveBoundaryMisses: 2 });
+    expect(await backing.read()).toMatchObject({ consecutiveBoundaryMisses: 2, boundaryAlerted: true });
+    await monitor.run(fail);
+    expect(await backing.read()).toMatchObject({ consecutiveBoundaryMisses: 2, boundaryAlerted: true });
+    await monitor.run(async () => {});
+    expect(await backing.read()).toMatchObject({ consecutiveBoundaryMisses: 0, boundaryAlerted: false });
+  });
+
+  it("keeps polling and execution failure alerts independent", async () => {
+    const sendAlert = vi.fn(async (_report: RunReport) => {});
+    const monitor = createIngestionMonitor({ region: "europe", failureThreshold: 1, sendAlert, log: vi.fn() });
+    expect(await monitor.run(async (context) => { context.boundaryMiss(); await fail(context); }))
+      .toMatchObject({ alertStatus: "sent", boundaryAlertStatus: "sent" });
+    expect(sendAlert.mock.calls.map(([report]) => report.alertType)).toEqual(["failure", "polling_interval"]);
+    expect(await monitor.run(miss)).toMatchObject({ consecutiveFailures: 0, boundaryAlertStatus: "already-sent" });
+    expect(sendAlert).toHaveBeenCalledTimes(2);
+    expect((await monitor.run(fail)).alertStatus).toBe("sent");
+    expect(sendAlert).toHaveBeenCalledTimes(3);
+  });
+
+  it("retries failed boundary alert delivery on the next affected run", async () => {
+    const sendAlert = vi.fn().mockRejectedValueOnce(new Error("Discord unavailable")).mockResolvedValue(undefined);
+    const monitor = createIngestionMonitor({ region: "europe", failureThreshold: 1, sendAlert, log: vi.fn() });
+    expect((await monitor.run(miss)).boundaryAlertStatus).toBe("failed");
+    expect((await monitor.run(miss)).boundaryAlertStatus).toBe("sent");
+    expect((await monitor.run(miss)).boundaryAlertStatus).toBe("already-sent");
+    expect(sendAlert).toHaveBeenCalledTimes(2);
+  });
+
+  it("still delivers the polling alert if the execution-failure alert cannot be sent", async () => {
+    const sendAlert = vi.fn<NonNullable<Parameters<typeof createIngestionMonitor>[0]["sendAlert"]>>()
+      .mockRejectedValueOnce(new Error("First delivery unavailable")).mockResolvedValue(undefined);
+    const monitor = createIngestionMonitor({ region: "europe", failureThreshold: 1, sendAlert, log: vi.fn() });
+    const report = await monitor.run(async (context) => { context.boundaryMiss(); await fail(context); });
+    expect(report).toMatchObject({ alertStatus: "failed", boundaryAlertStatus: "sent" });
+    expect(sendAlert.mock.calls.map(([entry]) => entry.alertType)).toEqual(["failure", "polling_interval"]);
+  });
+
+  it("keeps boundary delivery and streak during acknowledgment write outages", async () => {
+    const backing = memoryStateStore();
+    let unavailable = true;
+    const store = { read: backing.read, write: async (state: Parameters<typeof backing.write>[0]) => {
+      if (unavailable && state.boundaryAlerted) throw new Error("Acknowledgment unavailable");
+      await backing.write(state);
+    } };
+    const sendAlert = vi.fn(async (_report: RunReport) => {});
+    const monitor = createIngestionMonitor({ region: "europe", store, sendAlert, failureThreshold: 1, log: vi.fn() });
+    expect((await monitor.run(miss)).boundaryAlertStatus).toBe("sent");
+    expect((await monitor.run(miss)).boundaryAlertStatus).toBe("already-sent");
+    expect(sendAlert.mock.calls.filter(([report]) => report.alertType === "polling_interval")).toHaveLength(1);
+    expect(sendAlert.mock.calls.filter(([report]) => report.alertType === "failure")).toHaveLength(1);
+    unavailable = false;
+    await monitor.run(miss);
+    expect(await backing.read()).toMatchObject({ consecutiveBoundaryMisses: 3, boundaryAlerted: true });
+    const restarted = createIngestionMonitor({ region: "europe", store, sendAlert, failureThreshold: 1, log: vi.fn() });
+    expect((await restarted.run(miss)).boundaryAlertStatus).toBe("already-sent");
+    expect(sendAlert.mock.calls.filter(([report]) => report.alertType === "polling_interval")).toHaveLength(1);
+  });
+
+  it("does not advance or reset the warning streak on cancellation", async () => {
+    const monitor = createIngestionMonitor({ region: "europe", log: vi.fn() });
+    await monitor.run(miss);
+    const controller = new AbortController();
+    const report = await monitor.run(async (context) => { context.boundaryMiss(); controller.abort(); }, controller.signal);
+    expect(report).toMatchObject({ status: "cancelled", boundaryMisses: 1, consecutiveBoundaryMisses: 1,
+      boundaryAlertStatus: "not-needed" });
+  });
+});
+
 describe("Discord notifier", () => {
+  it("explains repeated missing boundaries without claiming execution failed", async () => {
+    const request = vi.fn<typeof fetch>().mockResolvedValue(Response.json({ id: "message-123" }));
+    const notify = discordNotifier("https://discord.com/api/webhooks/123/test-token", request);
+    const monitor = createIngestionMonitor({ region: "europe", failureThreshold: 1, sendAlert: notify, log: vi.fn() });
+    await monitor.run(async (context) => { context.boundaryMiss(); });
+    const payload = JSON.parse(String(request.mock.calls[0][1]?.body));
+    expect(payload.embeds).toHaveLength(1);
+    expect(payload.embeds[0]).toMatchObject({ title: "Ingestion coverage warning", color: 0xf59e0b });
+    expect(payload.embeds[0].description).toContain("Poll more often");
+    expect(payload.embeds[0].fields).toContainEqual({ name: "Stage", value: "Feed pagination", inline: true });
+    expect(payload.embeds[0].fields).toContainEqual({ name: "Missing boundaries this run", value: "1", inline: true });
+    expect(payload.allowed_mentions).toEqual({ parse: [] });
+  });
   it("sends the failed stage and metrics without triggering mentions", async () => {
     const request = vi.fn<typeof fetch>().mockResolvedValue(Response.json({ id: "message-123" }));
     const notify = discordNotifier("https://discord.com/api/webhooks/123/test-token", request);
     const report = await createIngestionMonitor({ region: "europe", log: vi.fn() }).run(fail);
     await notify(report);
     const payload = JSON.parse(String(request.mock.calls[0][1]?.body));
-    expect(payload.content).toContain("Failed stage: fetch");
-    expect(payload.content).toContain("retries: 0");
+    expect(payload.embeds[0]).toMatchObject({ title: "Ingestion run failed", color: 0xef4444,
+      timestamp: report.runId, footer: { text: "Albion ingestion monitor" } });
+    expect(payload.embeds[0].description).toContain(report.error);
+    expect(payload.embeds[0].fields).toContainEqual({ name: "Stage", value: "fetch", inline: true });
+    expect(payload.embeds[0].fields).toContainEqual(expect.objectContaining({ name: "Run metrics", value: expect.stringContaining("Retries: 0") }));
     expect(payload.allowed_mentions).toEqual({ parse: [] });
     expect(String(request.mock.calls[0][0])).toContain("wait=true");
   });

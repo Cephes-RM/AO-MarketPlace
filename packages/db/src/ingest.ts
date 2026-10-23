@@ -66,6 +66,8 @@ type IngestClient = Pick<PrismaClient, "alliance" | "guild" | "player" | "$trans
 interface IngestOptions {
   logger: Pick<Console, "warn">;
   client?: IngestClient;
+  /** Event-count deltas reported after a transaction commits or a constraint is skipped. */
+  onProgress?: (delta: IngestResult) => void;
 }
 
 // BigInt(0), not 0n: apps/web compiles this package for a target without BigInt literals.
@@ -160,6 +162,7 @@ export async function writeIngestBatch(batch: IngestBatch, options: IngestOption
     }, { timeout: 30_000 }));
     if (stored) result.written += 1;
     else result.skipped += 1;
+    options.onProgress?.({ written: stored ? 1 : 0, skipped: stored ? 0 : 1 });
   }
   return result;
 }

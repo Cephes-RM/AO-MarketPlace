@@ -587,6 +587,20 @@ describe("createAlbionClient", () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
+  it.each(["network", "http"])("retains the last %s failure when the cycle budget expires during backoff", async kind => {
+    const controller = new AbortController();
+    const failure = new TypeError("fetch failed", { cause: new Error("connect ECONNREFUSED") });
+    const fetch = vi.fn(async () => {
+      if (kind === "network") throw failure;
+      return failedResponse(503, "30");
+    });
+    const api = createAlbionClient({ region: "europe", fetch,
+      onRetry: () => queueMicrotask(() => controller.abort(new DOMException("Cycle budget expired", "TimeoutError"))) }).gameinfo;
+    await expect(api.getEvent(42, controller.signal)).rejects.toMatchObject({ name: "TimeoutError",
+      cause: kind === "network" ? failure : { status: 503, name: "AlbionApiError" } });
+    expect(fetch).toHaveBeenCalledOnce();
+  });
+
   it("cancels Retry-After backoff and clears its timer", async () => {
     vi.useFakeTimers();
     try {

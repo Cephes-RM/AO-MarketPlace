@@ -73,3 +73,7 @@ This opens a local web UI (defaults to `http://localhost:5555`) backed by the sa
 | `packages/ui`               | Shared React components (stub)                 | Hamza              |
 | `packages/typescript-config`| Shared tsconfig bases                          | —                  |
 | `packages/eslint-config`    | Shared ESLint config                           | —                  |
+
+## Documentation
+
+[Local DB Benchmarking](docs/DB_BENCHMARK.md) — how to seed a local Postgres with 1M players and measure query p95 latency.
