@@ -1,4 +1,6 @@
-import { formatFame, formatItemType } from "./format";
+import { EquipmentItemIcon } from "./equipment-item-icon";
+import { equipmentItemName } from "./equipment-item-name";
+import { formatFame } from "./format";
 
 export { formatFame, formatItemType } from "./format";
 
@@ -58,15 +60,17 @@ export function EquipmentLoadout({ equipment }: { equipment: Equipment }) {
     <dl className="equipment-grid">
       {EQUIPMENT_SLOTS.map(([slot, label]) => {
         const item = equipment[slot];
+        const name = item ? equipmentItemName(item.id) : "Unknown item";
         return (
           <div className={`equipment-slot${item ? "" : " equipment-slot--empty"}`} key={slot}>
             <dt>{label}</dt>
             <dd>
               {item ? (
                 <>
-                  <span className="equipment-slot__item" title={item.id}>{formatItemType(item.id)}</span>
+                  <EquipmentItemIcon itemId={item.id} quality={item.quality} name={name} />
+                  <span className="equipment-slot__item" title={item.id}>{name}</span>
                   <span className="equipment-slot__meta">
-                    {item.quality ? QUALITY_NAMES[item.quality] : "Quality not recorded"}
+                    {QUALITY_NAMES[item.quality ?? 0] ?? "Quality not recorded"}
                     {item.count && item.count > 1 ? ` · ×${item.count}` : ""}
                   </span>
                 </>
