@@ -167,42 +167,52 @@ export function createAlbionClient(options: AlbionClientOptions): AlbionClient {
     read: (response: AlbionFetchResponse) => Promise<T>,
     service = "Albion Gameinfo API",
   ): Promise<T> {
-    for (let attempt = 0; ; attempt += 1) {
-      init.signal?.throwIfAborted();
-      try {
-        const result = await requestWithTimeout(url, init, async (response) =>
-          response.ok
-            ? { response, value: await read(response) }
-            : { response },
-        );
-
-        if ("value" in result) {
-          return result.value as T;
-        }
-
-        if (
-          !isRetryableStatus(result.response.status) ||
-          attempt === retry.delaysMs.length
-        ) {
-          throw toAlbionApiError(result.response, url, service);
-        }
-
-        const delayMs = retryDelay(attempt, retry.delaysMs, result.response);
-        options.onRetry?.({ attempt: attempt + 1, delayMs, cause: "http", status: result.response.status });
-        await wait(delayMs, init.signal);
-      } catch (error) {
+    let lastError: unknown;
+    try {
+      for (let attempt = 0; ; attempt += 1) {
         init.signal?.throwIfAborted();
-        if (
-          !isRetryableError(error) ||
-          attempt === retry.delaysMs.length
-        ) {
-          throw error;
-        }
+        try {
+          const result = await requestWithTimeout(url, init, async (response) =>
+            response.ok
+              ? { response, value: await read(response) }
+              : { response },
+          );
 
-        const delayMs = retryDelay(attempt, retry.delaysMs);
-        options.onRetry?.({ attempt: attempt + 1, delayMs, cause: isTimeout(error) ? "timeout" : "network" });
-        await wait(delayMs, init.signal);
+          if ("value" in result) {
+            return result.value as T;
+          }
+
+          if (
+            !isRetryableStatus(result.response.status) ||
+            attempt === retry.delaysMs.length
+          ) {
+            throw toAlbionApiError(result.response, url, service);
+          }
+
+          const delayMs = retryDelay(attempt, retry.delaysMs, result.response);
+          lastError = toAlbionApiError(result.response, url, service);
+          options.onRetry?.({ attempt: attempt + 1, delayMs, cause: "http", status: result.response.status });
+          await wait(delayMs, init.signal);
+        } catch (error) {
+          init.signal?.throwIfAborted();
+          if (
+            !isRetryableError(error) ||
+            attempt === retry.delaysMs.length
+          ) {
+            throw error;
+          }
+
+          const delayMs = retryDelay(attempt, retry.delaysMs);
+          lastError = error;
+          options.onRetry?.({ attempt: attempt + 1, delayMs, cause: isTimeout(error) ? "timeout" : "network" });
+          await wait(delayMs, init.signal);
+        }
       }
+    } catch (error) {
+      if (init.signal?.aborted && lastError !== undefined && error instanceof Error) {
+        throw Object.assign(new Error(error.message, { cause: lastError }), { name: error.name });
+      }
+      throw error;
     }
   }
 

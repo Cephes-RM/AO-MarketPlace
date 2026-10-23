@@ -2,6 +2,7 @@ import { prisma } from "./client";
 import { combatEventSelect, RECENT_COMBAT_LIMIT, serializeCombatEvent } from "./combat";
 
 export { prisma };
+export { createWorkerStateStore } from "./worker-state";
 export type { LoadoutItem, PlayerLoadout } from "./loadout";
 export { parseLoadout } from "./loadout";
 export type { PlayerCombatEvent } from "./combat";

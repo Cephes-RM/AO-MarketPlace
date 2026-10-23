@@ -122,6 +122,22 @@ function sampleBatch(): IngestBatch {
 }
 
 describe("writeIngestBatch", () => {
+  it("reports committed progress before a later transaction fails and rethrows the original error", async () => {
+    const db = database();
+    const failure = new Error("Database connection lost");
+    const transaction = vi.mocked(db.client.$transaction).getMockImplementation()!;
+    let transactions = 0;
+    vi.mocked(db.client.$transaction).mockImplementation((async (...args: Parameters<typeof transaction>) => {
+      if (++transactions === 2) throw failure;
+      return transaction(...args);
+    }) as typeof transaction);
+    const onProgress = vi.fn();
+    await expect(writeIngestBatch(sampleBatch(), { client: db.client, logger: logger(), onProgress }))
+      .rejects.toBe(failure);
+    expect([...db.tables.killEvent.keys()]).toEqual(["1"]);
+    expect(onProgress).toHaveBeenCalledExactlyOnceWith({ written: 1, skipped: 0 });
+  });
+
   it("writes alliances, guilds, players, events, then participants", async () => {
     const db = database();
     await expect(writeIngestBatch(sampleBatch(), { logger: logger(), client: db.client }))
@@ -195,11 +211,13 @@ describe("writeIngestBatch", () => {
     const log = logger();
     const batch = sampleBatch();
     batch.players = batch.players.filter((player) => player.id !== "helper");
+    const onProgress = vi.fn();
 
-    await expect(writeIngestBatch(batch, { logger: log, client: db.client }))
+    await expect(writeIngestBatch(batch, { logger: log, client: db.client, onProgress }))
       .resolves.toEqual({ written: 0, skipped: 2 });
     expect(db.tables.killEvent.size).toBe(0);
     expect(db.tables.killParticipant.size).toBe(0);
+    expect(onProgress.mock.calls).toEqual([[{ written: 0, skipped: 1 }], [{ written: 0, skipped: 1 }]]);
     expect(log.warn).toHaveBeenCalledWith(
       "Skipped kill event that violates a database constraint.",
       { id: "1", code: "P2003" },
