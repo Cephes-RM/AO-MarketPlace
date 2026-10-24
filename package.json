@@ -14,7 +14,8 @@
     "lint": "turbo lint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "check:404": "node scripts/check-real-404s.mjs"
+    "check:404": "node scripts/check-real-404s.mjs",
+    "check:a11y": "node scripts/check-accessibility.mjs"
   },
   "devDependencies": {
     "dotenv": "^17.4.2",

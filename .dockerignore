@@ -8,3 +8,7 @@ coverage
 dist
 docs
 fixtures
+
+# Accessibility tooling and generated reports are development-only.
+packages/accessibility
+artifacts/accessibility

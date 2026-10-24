@@ -27,7 +27,7 @@ export default async function PlayerPage({
 
     return (
       <PageContainer>
-        <div className="breadcrumb"><Link href="/">Home</Link><span aria-hidden="true">/</span><span>Player</span></div>
+      <nav className="breadcrumb" aria-label="Breadcrumb"><Link href="/">Home</Link><span aria-hidden="true">/</span><span aria-current="page">Player</span></nav>
         <ProfileHeading eyebrow="PLAYER PROFILE" title={player.name} />
         <div className="stats-grid stats-grid--profile">
           <StatCard label="Current guild" value={currentMembership?.guild.name ?? "Independent"} />

@@ -33,15 +33,17 @@ duplicating them in TypeScript.
 | `--color-*`, `--*-rgb` | State colors, translucent surfaces, shared color channels |
 | `--font-family-*`, `--text-*`, `--weight-*`, `--leading-*`, `--tracking-*` | Typography; section, profile, and hero text retain responsive `clamp()` sizes |
 | `--space-*` | Margin, padding, gap, and offsets |
-| `--size-*` | Existing layout widths and heights |
+| `--size-*` | Layout dimensions, including `--size-touch-target` for 44px controls |
 | `--border-*`, `--focus-width`, `--outline-focus`, `--radius-circle` | Borders and focus treatment |
 | `--shadow-search` | Search dropdown shadow |
 
-Numeric suffixes retain the previous pixel sizes. This migration preserves
-existing appearances, including small labels and irregular spacing steps.
-Consolidating those steps or improving text sizes should be an intentional
-follow-up with updated visual evidence. Prefer existing tokens before adding
-another value; update the catalogue metadata when adding one.
+Numeric suffixes retain their pixel sizes. The PLAYERS-78 accessibility pass
+lightens rank, caption and muted text, uses `--color-control-border` for search
+and section controls, and increases the small labels used on main pages.
+The full type scale remains available to the catalogue. Prefer existing tokens
+before adding another value; update the catalogue metadata when adding one.
+See [the accessibility review checklist](../../docs/accessibility-and-mobile.md)
+for automated and manual checks still required.
 
 The existing `700px` and `950px` media-query conditions stay literal because
 CSS custom properties cannot be used in media-query conditions. Structural
