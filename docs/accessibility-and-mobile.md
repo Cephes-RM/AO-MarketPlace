@@ -27,7 +27,7 @@ From the repository root, run these in another terminal:
 
 ```sh
 pnpm install --frozen-lockfile
-pnpm exec playwright install chromium
+pnpm --filter @albion/accessibility exec playwright install chromium
 pnpm check:a11y http://localhost:3000
 ```
 
@@ -46,6 +46,43 @@ login redirects, empty rankings and recovery screens cannot pass as real content
 It exits nonzero for violations or failed assertions. The report is saved under
 `artifacts/accessibility/axe-report.json` (ignored by Git), including axe checks
 that need manual review. It does not alter the database or start a server.
+
+## CI and Docker review follow-up — 24 October 2026
+
+### Accessibility remains an explicit browser check
+
+The review permits running `pnpm check:a11y` separately when its requirements are
+documented. The current CI jobs do not provide a running site, populated database,
+a player with recorded equipment, Chromium or its Linux system dependencies.
+The checker deliberately rejects empty rankings and recovery/error pages. Run the
+command above against an accessible preview or a populated local production build,
+and retain its report before final review. Accessibility is not currently a CI
+merge gate. A dedicated job would need a disposable database, seed data, browser
+installation, web-server lifecycle management and report upload.
+
+### Browser dependencies are separate from application installs
+
+`playwright` and `@axe-core/playwright` now belong only to the private
+`@albion/accessibility` workspace (`packages/accessibility`). They are removed
+from root devDependencies. No root, web, worker or application dependency manifest
+references this tools workspace. The Docker context also excludes the tools
+workspace and generated accessibility reports via `.dockerignore`. This also covers pnpm 11.11.0's recursive install
+behavior, which can include the root importer despite application filters.
+
+The public `pnpm check:a11y` command still works through its small original entry
+point, which loads the implementation in the tools workspace. Reports remain in
+root `artifacts/accessibility/`. Install browsers using the filtered tools command
+above; a full workspace install is needed for the audit command.
+
+The inspected branch and `main` contain one Dockerfile:
+`apps/worker/Dockerfile`, used by `compose.yaml`. Its `worker...` installation does
+not select the accessibility workspace; the `web...` dependency closure does not
+either. There is no checked-in web Dockerfile to inspect. A separately maintained
+web image must also avoid installing the tools workspace or every workspace.
+
+This follow-up is based on package/filter inspection. Docker is unavailable here,
+so an actual image build and container dependency inspection remain to be done.
+The historical validation below has not been rerun for the workspace relocation.
 
 ## Validation results — 21 October 2026
 
